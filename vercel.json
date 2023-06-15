@@ -11,5 +11,8 @@
       "src": "/(.*)",
       "dest": "src/wsgi.py"
     }
-  ]
+  ],
+  "env": {
+    "DJANGO_SETTINGS_MODULE": "src.settings"
+  }
 }
