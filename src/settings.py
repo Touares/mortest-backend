@@ -26,7 +26,7 @@ SECRET_KEY = "django-insecure-qa%xy@b9so%^@*5#mtd_z+)*qeiwy6s034d2uyk)28mpq*juu-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [".vercel.app"]
 
 # CORS_ORIGIN_WHITELIST = [
 #     "http://localhost:3000",  # Add any other allowed origins
@@ -101,15 +101,22 @@ WSGI_APPLICATION = "src.wsgi.application"
 #   }
 # }
 # Touares Uncomment that for your mysql settings.
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "django.db.backends.mysql",
+#         "NAME": "mortestschema",
+#         "HOST": "localhost",
+#         # 'HOST': '127.0.0.1',
+#         "PORT": "3306",
+#         "USER": "root",
+#         "PASSWORD": "It0663058639",
+#     }
+# }
+
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.mysql",
-        "NAME": "mortestschema",
-        "HOST": "localhost",
-        # 'HOST': '127.0.0.1',
-        "PORT": "3306",
-        "USER": "root",
-        "PASSWORD": "It0663058639",
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
     }
 }
 
