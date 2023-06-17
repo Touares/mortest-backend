@@ -26,7 +26,8 @@ SECRET_KEY = "django-insecure-qa%xy@b9so%^@*5#mtd_z+)*qeiwy6s034d2uyk)28mpq*juu-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = [".vercel.app"]
+ALLOWED_HOSTS = ["*"]
+# ALLOWED_HOSTS = [".vercel.app"]
 
 # CORS_ORIGIN_WHITELIST = [
 #     "http://localhost:3000",  # Add any other allowed origins
@@ -101,17 +102,17 @@ WSGI_APPLICATION = "src.wsgi.application"
 #   }
 # }
 # Touares Uncomment that for your mysql settings.
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.mysql",
-        "NAME": "railway",
-        "HOST": "containers-us-west-80.railway.app",
-        # 'HOST': '127.0.0.1',
-        "PORT": "7189",
-        "USER": "root",
-        "PASSWORD": "qqjpkwOQwvtg4D8BTixY",
-    }
-}
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "django.db.backends.mysql",
+#         "NAME": "railway",
+#         "HOST": "containers-us-west-80.railway.app",
+#         # 'HOST': '127.0.0.1',
+#         "PORT": "7189",
+#         "USER": "root",
+#         "PASSWORD": "qqjpkwOQwvtg4D8BTixY",
+#     }
+# }
 # DATABASES = {
 #     "default": {
 #         "ENGINE": "django.db.backends.mysql",
@@ -124,12 +125,12 @@ DATABASES = {
 #     }
 # }
 
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "django.db.backends.sqlite3",
-#         "NAME": BASE_DIR / "db.sqlite3",
-#     }
-# }
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    }
+}
 
 # Authentication Classes
 # https://docs.djangoproject.com/en/4.0/ref/settings/#auth-password-validators

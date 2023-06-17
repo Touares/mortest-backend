@@ -11,7 +11,8 @@ from rest_framework import status, pagination
 from django_filters.rest_framework import DjangoFilterBackend
 from datetime import datetime
 from .custom_permissions import IsSPUser
-
+from .models import ProduitVenteClient
+from .models import Produit
 
 # ----------------------------------------------SELLING POINT----------------------------------------------------------
 
@@ -979,12 +980,13 @@ class FicheVenteClientGetPost(generics.ListCreateAPIView):
             serializer.instance.client.save()
             caisse = serializer.instance.caisse
             caisse.montant_vente_client += serializer.instance.montant_reg_client
-            caisse.save
+            caisse.save()
             client = serializer.instance.client
             client.solde += (
                 serializer.instance.prixTTC - serializer.instance.montant_reg_client
             )
             client.save()
+            print("posted successfully")
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1005,6 +1007,32 @@ class FicheVenteClientPk(generics.RetrieveUpdateDestroyAPIView):
                 selling_point=self.request.user.vendeur.selling_point
             )
         return queryset
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        if serializer.is_valid(raise_exception=True):
+            serializer.save(modifie_par=request.user)
+            # serializer.instance
+            produits = serializer.instance.produits.all()
+            for produit in produits:
+                totalAchete = 0
+                filterProd = Produit.objects.get(id=produit.produit.id)
+                # prod = Produit.objects.get(id=filterProd.id)
+                produitVente = ProduitVenteClient.objects.filter(
+                    produit__id=filterProd.id
+                )
+                # filterProd.qtte_vendue = 0
+                for pV in produitVente:
+                    totalAchete = totalAchete + pV.quantite
+                    # filterProd.qtte_vendue += pV.quantite
+                    # print(pV.quantite)
+                # print(totalAchete)
+                filterProd.qtte_vendue = totalAchete
+                filterProd.save()
+                # print(prod.qtte_vendue)
+
+        return Response(serializer.data)
 
     def perform_update(self, serializer):
         serializer.save(modifie_par=self.request.user)
