@@ -712,11 +712,13 @@ class ClientSerializer(serializers.ModelSerializer):
 class ProduitVenteClientSerializer(serializers.ModelSerializer):
     produit = ProduitCustomRelationField(slug_field="id")
     depot = DepotCustomRelationField(slug_field="id")
-    prix = serializers.ReadOnlyField(source="prixProduit")
+    # prix = serializers.ReadOnlyField(source="prixProduit")
     qtteAct = serializers.ReadOnlyField(source="qtteActProduit")
     produit_reference = serializers.SerializerMethodField()
     article = serializers.SerializerMethodField()
     prix_produit = serializers.SerializerMethodField()
+    produitUnite = serializers.SerializerMethodField()
+    totalPrix = serializers.SerializerMethodField()
 
     class Meta:
         model = models.ProduitVenteClient
@@ -726,21 +728,43 @@ class ProduitVenteClientSerializer(serializers.ModelSerializer):
             "produit",
             "quantite",
             "numero_lot",
-            "prix",
+            # "prix",
             "qtteAct",
             "produit_reference",
             "numeroVente",
             "article",
             "prix_produit",
+            "produitUnite",
+            "totalPrix",
         ]
 
     def get_produit_reference(self, obj):
         ref = obj.produit.reference
         return ref
 
+    # def get_nom_produit(self, obj):
+    #     ref = obj.produit.article
+    #     return ref
+
     def get_article(self, obj):
         art = obj.produit.article
         return art
+
+    def get_produitUnite(self, obj):
+        art = obj.produit.unit
+        return art
+
+    def get_totalPrix(self, obj):
+        prix = 0
+        if obj.vente.type_client == "Détaillant":
+            prix = obj.produit.prix_detail
+        elif obj.vente.type_client == "Grossiste":
+            prix = obj.produit.prix_vente_gros
+        elif obj.vente.type_client == "Revendeur":
+            prix = obj.produit.prix_vente_revendeur
+        else:
+            prix = obj.produit.prix_vente_autre
+        return prix * obj.quantite
 
     def get_prix_produit(self, obj):
         prix = 0
@@ -792,6 +816,7 @@ class FicheVenteSerializer(WritableNestedModelSerializer):
     # caisse = CaisseSerializer()
 
     montanttva = serializers.ReadOnlyField(source="montantTVA")
+    montanttimbre = serializers.ReadOnlyField(source="montantTimbre")
     montantremise = serializers.ReadOnlyField(source="montantRemise")
     prixttc = serializers.ReadOnlyField(source="prixTTC")
     totalachats = serializers.ReadOnlyField(source="total")
@@ -827,6 +852,7 @@ class FicheVenteSerializer(WritableNestedModelSerializer):
             "remise",
             "montanttva",
             "montantremise",
+            "montanttimbre",
             "prixttc",
             "reste_a_payer",
             "client_name",

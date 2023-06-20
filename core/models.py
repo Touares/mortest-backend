@@ -807,6 +807,11 @@ class FicheVenteClient(models.Model):
         prix = self.total
         montant = (self.remise * prix) / 100
         return montant
+    @property
+    def montantTimbre(self):
+        prix = self.total
+        montant = (self.timbre * prix) / 100
+        return montant
 
     @property
     def prixTTC(self):
