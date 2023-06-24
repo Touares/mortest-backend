@@ -646,7 +646,7 @@ class ProduitsRetourFournisseur(models.Model):
 
 class Client(models.Model):
     selling_point = models.ForeignKey(SellingPoint, on_delete=models.CASCADE)
-    numero = models.PositiveIntegerField()
+    numero = models.PositiveIntegerField(blank=True, null=True)
     etat_civile_data = (
         ("M.", "M."),
         ("Mme", "Mme"),
@@ -669,6 +669,8 @@ class Client(models.Model):
     email = models.EmailField(blank=True, null=True)
     numero_rc = models.PositiveIntegerField(blank=True, null=True)
     NRC = models.CharField(max_length=50, blank=True, null=True)
+    NIF = models.CharField(max_length=50, blank=True, null=True)
+    Al = models.CharField(max_length=50, blank=True, null=True)
     NIS = models.CharField(max_length=50, blank=True, null=True)
     RIB = models.CharField(max_length=50, blank=True, null=True)
     solde = models.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -807,6 +809,7 @@ class FicheVenteClient(models.Model):
         prix = self.total
         montant = (self.remise * prix) / 100
         return montant
+
     @property
     def montantTimbre(self):
         prix = self.total
@@ -853,22 +856,22 @@ class ProduitVenteClient(models.Model):
 
 class PayementClient(models.Model):
     selling_point = models.ForeignKey(SellingPoint, on_delete=models.CASCADE, default=1)
-    date = models.DateField()
+    # date = models.DateField()
     client = models.ForeignKey(Client, on_delete=models.PROTECT)
     saisie_le = models.DateField(auto_now_add=True)
     modilfié_le = models.DateField(auto_now=True)
     modilfie_par = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        default=1111,
+        # blank=True
         null=True,
         related_name="modifie_par_pc",
     )
 
     saisie_par = models.ForeignKey(
-        User, on_delete=models.CASCADE, default=1111, related_name="saisie_par_pc"
+        User, on_delete=models.CASCADE, related_name="saisie_par_pc"
     )
-    achat = models.ForeignKey(FicheAchatCommandeFournisseur, on_delete=models.CASCADE)
+    # achat = models.ForeignKey(FicheAchatCommandeFournisseur, on_delete=models.CASCADE)
     montant = models.DecimalField(max_digits=10, decimal_places=2)
     reglement_data = (
         ("A terme", "A terme"),
@@ -878,7 +881,7 @@ class PayementClient(models.Model):
     )
     reglement = models.CharField(default=1, choices=reglement_data, max_length=20)
     caisse = models.ForeignKey(Caisse, on_delete=models.CASCADE)
-    observation = models.TextField(max_length=500)
+    observation = models.TextField(max_length=500, blank=True, null=True)
 
     def __str__(self) -> str:
         return f"payement {self.client.nom}"

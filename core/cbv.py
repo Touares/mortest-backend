@@ -968,16 +968,22 @@ class FicheVenteClientGetPost(generics.ListCreateAPIView):
             data=request.data, context={"request": request}
         )
         if serializer.is_valid():
+            # self.object = self.get_object()
+            # total = self.object.prixTTC
+            # payed = self.object.montant_reg_client
+            # self.object.reste_a_payer = total - payed
+            # self.object.save()
             serializer.save(saisie_par=request.user)
             serializer.instance.reste_a_payer = (
                 serializer.instance.prixTTC - serializer.instance.montant_reg_client
             )
+            serializer.instance.save()
             for prod in serializer.instance.produits.all():
                 prod.produit.qtte_vendue += prod.quantite
                 prod.produit.save()
-            solde = serializer.instance.prixTTC - serializer.instance.montant_reg_client
-            serializer.instance.client.solde += solde
-            serializer.instance.client.save()
+            # solde = serializer.instance.prixTTC - serializer.instance.montant_reg_client
+            # serializer.instance.client.solde += solde
+            # serializer.instance.client.save()
             caisse = serializer.instance.caisse
             caisse.montant_vente_client += serializer.instance.montant_reg_client
             caisse.save()
@@ -996,8 +1002,8 @@ class FicheVenteClientPk(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = serializers.FicheVenteSerializer
     permission_classes = [
         IsAuthenticated,
-        DjangoModelPermissionsOrAnonReadOnly,
-        IsSPUser,
+        # DjangoModelPermissionsOrAnonReadOnly,
+        # IsSPUser,
     ]
 
     def get_queryset(self):
@@ -1013,7 +1019,31 @@ class FicheVenteClientPk(generics.RetrieveUpdateDestroyAPIView):
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         if serializer.is_valid(raise_exception=True):
             serializer.save(modifie_par=request.user)
+            serializer.instance.reste_a_payer = (
+                serializer.instance.prixTTC - serializer.instance.montant_reg_client
+            )
+            serializer.instance.save()
             # serializer.instance
+            # Updating the Caisse
+
+            instanceCisse = serializer.instance.caisse
+
+            # Updating the clients Solde
+
+            instanceClient = serializer.instance.client
+            clientSolde = 0
+            tousVentes = models.FicheVenteClient.objects.filter(client=instanceClient)
+            # print(tousVentes)
+            for v in tousVentes:
+                print(v.reste_a_payer)
+                clientSolde += v.prixTTC - v.montant_reg_client
+
+            # print(clientSolde)
+            instanceClient.solde = clientSolde
+            instanceClient.save()
+
+            # Updating sold quantity for every product in the sale
+
             produits = serializer.instance.produits.all()
             for produit in produits:
                 totalAchete = 0

@@ -873,6 +873,8 @@ class FicheVenteSerializer(WritableNestedModelSerializer):
 
     def create(self, validated_data):
         produits_data = validated_data.pop("produits")
+        # produits_data = validated_data.pop("produits")
+        # produits_data = validated_data.pop("produits")
         request = self.context.get("request", None)
         for produit_data in produits_data:
             if not request.user.is_superuser:
@@ -927,7 +929,7 @@ class FicheVenteSerializer(WritableNestedModelSerializer):
 class PayementClientSerializer(serializers.ModelSerializer):
     selling_point = SellingPointCustomRelationQueryset(slug_field="id")
     client = ClientCustomRelationField(slug_field="id")
-    achat = AchatCustomRelationField(slug_field="id")
+    # achat = AchatCustomRelationField(slug_field="id")
     reglement_data = (
         ("A terme", "A terme"),
         ("Espece", "Espece"),
@@ -943,13 +945,12 @@ class PayementClientSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "selling_point",
-            "date",
+            # "date",
             "client",
             "saisie_le",
             "modilfié_le",
             "saisie_par",
-            "modifie_par",
-            "achat",
+            # "modifie_par",
             "montant",
             "reglement",
             "caisse",

@@ -33,7 +33,11 @@ ALLOWED_HOSTS = ["*"]
 #     "http://localhost:3000",  # Add any other allowed origins
 #     "http://127.0.0.1:3000",  # Add any other allowed origins
 # ]
-
+CORS_ORIGIN_WHITELIST = [
+    "http://localhost:3000",
+    # Other trusted origins...
+    "http://127.0.0.1:3000",
+]
 
 # Application definition
 CORS_ALLOWED_ORIGINS = [
