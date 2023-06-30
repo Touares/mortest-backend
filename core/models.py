@@ -294,26 +294,18 @@ class FicheDebit(models.Model):
 
 class Vendeur(models.Model):
     selling_point = models.ForeignKey(SellingPoint, on_delete=models.CASCADE)
-    name = models.CharField(max_length=50, null=True, blank=True)
-    last_name = models.CharField(max_length=50, null=True, blank=True)
-    img = models.ImageField(null=True, blank=True, upload_to="images/produits/")
-    adress = models.CharField(max_length=100, null=True, blank=True)
-    identity_num = models.PositiveBigIntegerField(null=True, blank=True, unique=True)
+    # name = models.CharField(max_length=50, null=True, blank=True)
+    # last_name = models.CharField(max_length=50, null=True, blank=True)
+    # img = models.ImageField(null=True, blank=True, upload_to="images/produits/")
+    # adress = models.CharField(max_length=100, null=True, blank=True)
+    # identity_num = models.PositiveBigIntegerField(null=True, blank=True, unique=True)
     admin = models.OneToOneField(User, on_delete=models.CASCADE)
-    phone_number_1 = models.PositiveBigIntegerField(null=True, blank=True)
-    phone_number_2 = models.PositiveBigIntegerField(blank=True, null=True)
-    family_situation = models.CharField(max_length=100, blank=True, null=True)
-    name = models.CharField(max_length=50)
-    last_name = models.CharField(max_length=50)
-    adress = models.CharField(max_length=100)
-    identity_num = models.BigIntegerField(unique=True)
-    admin = models.OneToOneField(User, on_delete=models.CASCADE, default=1111)
-    phone_number_1 = models.IntegerField()
-    phone_number_2 = models.IntegerField(blank=True, null=True)
-    family_situation = models.CharField(max_length=100)
+    # phone_number_1 = models.PositiveBigIntegerField(null=True, blank=True)
+    # phone_number_2 = models.PositiveBigIntegerField(blank=True, null=True)
+    # family_situation = models.CharField(max_length=100, blank=True, null=True)
 
     def __str__(self) -> str:
-        return f"{self.name} {self.last_name}"
+        return f"{self.admin.username}"
 
 
 class TypeFG(models.Model):

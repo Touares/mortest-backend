@@ -314,23 +314,25 @@ class VendeurSerializer(serializers.ModelSerializer):
     selling_point = serializers.SlugRelatedField(
         queryset=SellingPoint.objects.all(), slug_field="id", required=False
     )
-    # admin = serializers.SlugRelatedField(queryset=User.objects.all(),
-    # slug_field='id')
+    admin = serializers.SlugRelatedField(
+        queryset=User.objects.all(), slug_field="id", required=False
+    )
 
     class Meta:
         model = Vendeur
         fields = [
             "id",
             "selling_point",
-            "name",
-            "last_name",
-            "img",
-            "identity_num",
-            "phone_number_1",
-            "phone_number_2",
-            "family_situation",
-            "adress",
-            "admin",
+            "admin"
+            # "name",
+            # "last_name",
+            # "img",
+            # "identity_num",
+            # "phone_number_1",
+            # "phone_number_2",
+            # "family_situation",
+            # "adress",
+            # "admin",
         ]
         # depth = 1
 
@@ -938,6 +940,9 @@ class PayementClientSerializer(serializers.ModelSerializer):
     )
     reglement = serializers.ChoiceField(default=1, choices=reglement_data)
     caisse = CaisseCustomRelationField(slug_field="id")
+    clientData = serializers.SerializerMethodField()
+    caisseData = serializers.SerializerMethodField()
+
     # client_solde = serializers.SerializerMethodField()
 
     class Meta:
@@ -955,6 +960,8 @@ class PayementClientSerializer(serializers.ModelSerializer):
             "reglement",
             "caisse",
             "observation",
+            "clientData",
+            "caisseData",
         ]
         read_only_fields = ["saisie_le", "modilfié_le", "saisie_par", "modifie_par"]
         depth = 1
@@ -973,6 +980,17 @@ class PayementClientSerializer(serializers.ModelSerializer):
                 f"the client {data['client']} is overpaying"
             )
         return data
+
+    def get_clientData(self, obj):
+        id = obj.client.id
+        client = Client.objects.get(id=id)
+        serializer = ClientSerializer(client)
+        return serializer.data
+
+    def get_caisseData(self, obj):
+        caisse = obj.caisse
+        serializer = CaisseSerializer(caisse)
+        return serializer.data
 
     # def get_client_solde(self, data):
     #     solde = data['client'].solde

@@ -16,6 +16,50 @@ class PermissionSerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(
+        write_only=True, required=True, validators=[validate_password]
+    )
+
+    class Meta:
+        model = CustomUser
+        fields = [
+            "id",
+            "username",
+            "email",
+            "first_name",
+            "last_name",
+            "user_permissions",
+            "password",
+            "vendeur",
+            "permissions",
+            "is_staff",
+            "is_superuser",
+            "user_selling_point",
+        ]
+        # extra_kwargs = {
+        #     'permissions': {'write_only': True}
+        #     }
+        read_only_fields = [
+            "user_permissions",
+            "user_selling_point",
+            "vendeur",
+        ]
+
+    def create(self, validated_data):
+        # vendeur_data = validated_data.pop("vendeur")
+        user = CustomUser.objects.create_user(
+            username=validated_data["username"],
+            email=validated_data["email"],
+            password=validated_data["password"],
+            # first_name=validated_data["first_name"],
+            # last_name=validated_data["last_name"],
+            # is_staff=validated_data["is_staff"],
+            is_superuser=validated_data["is_superuser"],
+        )
+        user.save()
+
+
+class UserSerializer(serializers.ModelSerializer):
     # user_type_data = (('1',"Directeur"),('2',"Vendeur"),('3',"Autre"))
     # user_type = serializers.ChoiceField(default='2',choices=user_type_data)
 
@@ -114,7 +158,7 @@ class UserSerializer(serializers.ModelSerializer):
             "Can delete produits retour fournisseur",
         ),
         (
-            "Can change produits retour fournisseur ",
+            "Can change produits retour fournisseur",
             "Can change produits retour fournisseur",
         ),
         (
@@ -141,6 +185,14 @@ class UserSerializer(serializers.ModelSerializer):
         ("Can delete vendeur", "Can delete vendeur"),
         ("Can change vendeur", "Can change vendeur"),
         ("Can view vendeur", "Can view vendeur"),
+        ("Can add clarque", "Can add clarque"),
+        ("Can delete clarque", "Can delete clarque"),
+        ("Can change clarque", "Can change clarque"),
+        ("Can view clarque", "Can view clarque"),
+        ("Can add transporteur", "Can add transporteur"),
+        ("Can delete transporteur", "Can delete transporteur"),
+        ("Can change transporteur", "Can change transporteur"),
+        ("Can view transporteur", "Can view transporteur"),
     )
 
     permissions = serializers.MultipleChoiceField(
@@ -152,7 +204,7 @@ class UserSerializer(serializers.ModelSerializer):
         write_only=True, required=True, validators=[validate_password]
     )
     # password2 = serializers.CharField(write_only=True, required=True)
-    vendeur = VendeurSerializer()
+    vendeur = VendeurSerializer(required=False)
     user_selling_point = serializers.SerializerMethodField()
 
     class Meta:
@@ -163,6 +215,11 @@ class UserSerializer(serializers.ModelSerializer):
             "email",
             "first_name",
             "last_name",
+            "adress",
+            "identity_num",
+            "phone_number_1",
+            "phone_number_2",
+            "family_situation",
             "user_permissions",
             "password",
             "vendeur",
@@ -177,7 +234,7 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "user_permissions",
             "user_selling_point",
-            "vendeur",
+            # "vendeur",
         ]
 
     def get_user_selling_point(self, obj):
@@ -195,19 +252,32 @@ class UserSerializer(serializers.ModelSerializer):
         # return montant
 
     def create(self, validated_data):
-        vendeur_data = validated_data.pop("vendeur")
+        vendeur_data = None
+        if "vendeur" in validated_data:
+            vendeur_data = validated_data.pop("vendeur")
+        # secondPhone = None
+        # if "phone_number_2" in validated_data:
+        #     secondPhone = validated_data.pop("phone_number_2")
         user = CustomUser.objects.create_user(
             username=validated_data["username"],
             email=validated_data["email"],
             password=validated_data["password"],
+            adress=validated_data["adress"],
+            identity_num=validated_data["identity_num"],
+            phone_number_1=validated_data["phone_number_1"],
+            family_situation=validated_data["family_situation"],
             first_name=validated_data["first_name"],
             last_name=validated_data["last_name"],
-            is_staff=validated_data["is_staff"],
+            # is_staff=validated_data["is_staff"],
             is_superuser=validated_data["is_superuser"],
         )
+
         # user.set_password(validated_data['password'])
         # user.user_permissions.set(validated_data['permissions'])
         user.save()
+        # print(user)
+        # if secondPhone:
+        #     user.phone_number_2 = secondPhone
 
         if validated_data["permissions"]:
             permissions = validated_data["permissions"]
@@ -221,7 +291,8 @@ class UserSerializer(serializers.ModelSerializer):
                     )
                 perm_list.append(permission)
             user.user_permissions.set(perm_list)
-        Vendeur.objects.create(admin=user, **vendeur_data)
+        if vendeur_data:
+            Vendeur.objects.create(admin=user, **vendeur_data)
         return user
 
     def update(self, instance, validated_data):
