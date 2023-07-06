@@ -712,15 +712,15 @@ class ClientSerializer(serializers.ModelSerializer):
 
 
 class ProduitVenteClientSerializer(serializers.ModelSerializer):
-    produit = ProduitCustomRelationField(slug_field="id")
+    produit = ProduitCustomRelationField(slug_field="id", allow_null=True)
     depot = DepotCustomRelationField(slug_field="id")
     # prix = serializers.ReadOnlyField(source="prixProduit")
     qtteAct = serializers.ReadOnlyField(source="qtteActProduit")
-    produit_reference = serializers.SerializerMethodField()
-    article = serializers.SerializerMethodField()
-    prix_produit = serializers.SerializerMethodField()
-    produitUnite = serializers.SerializerMethodField()
-    totalPrix = serializers.SerializerMethodField()
+    # produit_reference = serializers.SerializerMethodField()
+    # article = serializers.SerializerMethodField()
+    # prix_produit = serializers.SerializerMethodField()
+    # produitUnite = serializers.SerializerMethodField()
+    # totalPrix = serializers.SerializerMethodField()
 
     class Meta:
         model = models.ProduitVenteClient
@@ -734,51 +734,57 @@ class ProduitVenteClientSerializer(serializers.ModelSerializer):
             "qtteAct",
             "produit_reference",
             "numeroVente",
-            "article",
-            "prix_produit",
-            "produitUnite",
-            "totalPrix",
+            "produit_article",
+            "prix_detail_produit",
+            "prix_gros_produit",
+            "prix_autre_produit",
+            "produit_unite",
+            "total_prix",
         ]
 
     def get_produit_reference(self, obj):
-        ref = obj.produit.reference
-        return ref
+        if obj.produit:
+            ref = obj.produit.reference
+
+        if obj.produit:
+            return ref
+        return
 
     # def get_nom_produit(self, obj):
     #     ref = obj.produit.article
     #     return ref
 
-    def get_article(self, obj):
-        art = obj.produit.article
-        return art
+    # def get_article(self, obj):
+    #     art = obj.produit.article
+    #     return art
 
-    def get_produitUnite(self, obj):
-        art = obj.produit.unit
-        return art
+    # def get_produitUnite(self, obj):
+    #     art = obj.produit.unit
+    #     return art
 
-    def get_totalPrix(self, obj):
-        prix = 0
-        if obj.vente.type_client == "Détaillant":
-            prix = obj.produit.prix_detail
-        elif obj.vente.type_client == "Grossiste":
-            prix = obj.produit.prix_vente_gros
-        elif obj.vente.type_client == "Revendeur":
-            prix = obj.produit.prix_vente_revendeur
-        else:
-            prix = obj.produit.prix_vente_autre
-        return prix * obj.quantite
+    # def get_totalPrix(self, obj):
+    #     prix = 0
+    #     if obj.vente.type_client == "Détaillant":
+    #         prix = obj.produit.prix_detail
+    #     elif obj.vente.type_client == "Grossiste":
+    #         prix = obj.produit.prix_vente_gros
+    #     elif obj.vente.type_client == "Revendeur":
+    #         prix = obj.produit.prix_vente_revendeur
+    #     else:
+    #         prix = obj.produit.prix_vente_autre
+    #     return prix * obj.quantite
 
-    def get_prix_produit(self, obj):
-        prix = 0
-        if obj.vente.type_client == "Détaillant":
-            prix = obj.produit.prix_detail
-        elif obj.vente.type_client == "Grossiste":
-            prix = obj.produit.prix_vente_gros
-        elif obj.vente.type_client == "Revendeur":
-            prix = obj.produit.prix_vente_revendeur
-        else:
-            prix = obj.produit.prix_vente_autre
-        return prix
+    # def get_prix_produit(self, obj):
+    #     prix = 0
+    #     if obj.vente.type_client == "Détaillant":
+    #         prix = obj.produit.prix_detail
+    #     elif obj.vente.type_client == "Grossiste":
+    #         prix = obj.produit.prix_vente_gros
+    #     elif obj.vente.type_client == "Revendeur":
+    #         prix = obj.produit.prix_vente_revendeur
+    #     else:
+    #         prix = obj.produit.prix_vente_autre
+    #     return prix
 
 
 class FicheVenteSerializer(WritableNestedModelSerializer):
@@ -820,8 +826,8 @@ class FicheVenteSerializer(WritableNestedModelSerializer):
     montanttva = serializers.ReadOnlyField(source="montantTVA")
     montanttimbre = serializers.ReadOnlyField(source="montantTimbre")
     montantremise = serializers.ReadOnlyField(source="montantRemise")
-    prixttc = serializers.ReadOnlyField(source="prixTTC")
-    totalachats = serializers.ReadOnlyField(source="total")
+    # prixttc = serializers.ReadOnlyField(source="prixTTC")
+    # totalachats = serializers.ReadOnlyField(source="total")
     reste_a_payer = serializers.SerializerMethodField()
     client_name = serializers.SerializerMethodField()
     client_solde = serializers.SerializerMethodField()
@@ -848,14 +854,15 @@ class FicheVenteSerializer(WritableNestedModelSerializer):
             "mode_reglement",
             "caisse",
             "observation",
-            "totalachats",
+            "total",
+            "subtotal",
             "TVA",
             "timbre",
             "remise",
             "montanttva",
             "montantremise",
             "montanttimbre",
-            "prixttc",
+            # "prixttc",
             "reste_a_payer",
             "client_name",
             "client_solde",
@@ -888,24 +895,39 @@ class FicheVenteSerializer(WritableNestedModelSerializer):
                     )
         fiche = models.FicheVenteClient.objects.create(**validated_data)
         for produit_data in produits_data:
-            models.ProduitVenteClient.objects.create(vente=fiche, **produit_data)
+            prodVente = models.ProduitVenteClient.objects.create(
+                vente=fiche, **produit_data
+            )
+            prodData = produit_data["produit"]
+            prod = Produit.objects.get(id=prodData.id)
+            if prod:
+                # if prod
+                prodVente.total_prix = prod.prix_detail * prodVente.quantite
+                prodVente.prix_detail_produit = prod.prix_detail
+                prodVente.prix_gros_produit = prod.prix_vente_gros
+                prodVente.prix_autre_produit = prod.prix_vente_autre
+                prodVente.produit_reference = prod.reference
+                prodVente.produit_article = prod.article
+                prodVente.produit_unite = prod.unit
+            prodVente.save()
+
         return fiche
 
-    def validate(self, data):
-        for prod in data["produits"]:
-            if prod["quantite"] > prod["produit"].qtteActuelStock:
-                missing = prod["produit"].qtteActuelStock - prod["quantite"]
-                raise serializers.ValidationError(
-                    f"you dont have enough of {prod['produit'].article}, you miss {missing} pieces"
-                )
+    # def validate(self, data):
+    #     for prod in data["produits"]:
+    #         if prod["quantite"] > prod["produit"].qtteActuelStock:
+    #             missing = prod["quantite"] - prod["produit"].qtteActuelStock
+    #             raise serializers.ValidationError(
+    #                 f"you dont have enough of {prod['produit'].article}, you miss {missing} pieces"
+    #             )
 
-        # if data['montant_reg_client'] > data['prixttc']:
-        #     raise serializers.ValidationError(
-        #         f"the client is overpaying")
-        return data
+    #     # if data['montant_reg_client'] > data['prixttc']:
+    #     #     raise serializers.ValidationError(
+    #     #         f"the client is overpaying")
+    #     return data
 
     def get_reste_a_payer(self, obj):
-        reste = obj.prixTTC - obj.montant_reg_client
+        reste = obj.total - obj.montant_reg_client
         return reste
 
     def get_client_name(self, obj):

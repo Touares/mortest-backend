@@ -734,6 +734,8 @@ class FicheVenteClient(models.Model):
         decimal_places=2,
     )
     timbre = models.DecimalField(default=0, max_digits=10, decimal_places=2)
+    subtotal = models.DecimalField(default=0, max_digits=20, decimal_places=2)
+    total = models.DecimalField(default=0, max_digits=20, decimal_places=2)
     remise = models.DecimalField(
         default=0,
         validators=[MaxValueValidator(100), MinValueValidator(0)],
@@ -775,44 +777,44 @@ class FicheVenteClient(models.Model):
 
         super(FicheVenteClient, self).save(*args, **kwargs)
 
-    @property
-    def total(self):
-        prix = 0
-        for prod in self.produits.all():
-            if self.type_client == "Détaillant":
-                prix += prod.produit.prix_detail * prod.quantite
-            elif self.type_client == "Grossiste":
-                prix += prod.produit.prix_vente_gros * prod.quantite
-            elif self.type_client == "Revendeur":
-                prix += prod.produit.prix_vente_revendeur * prod.quantite
-            else:
-                prix += prod.produit.prix_vente_autre * prod.quantite
+    # @property
+    # def total(self):
+    #     prix = 0
+    #     for prod in self.produits.all():
+    #         if self.type_client == "Détaillant":
+    #             prix += prod.produit.prix_detail * prod.quantite
+    #         elif self.type_client == "Grossiste":
+    #             prix += prod.produit.prix_vente_gros * prod.quantite
+    #         elif self.type_client == "Revendeur":
+    #             prix += prod.produit.prix_vente_revendeur * prod.quantite
+    #         else:
+    #             prix += prod.produit.prix_vente_autre * prod.quantite
 
-        return prix
+    #     return prix
 
     @property
     def montantTVA(self):
-        prix = self.total
+        prix = self.subtotal
         montant = (self.TVA * prix) / 100
         return montant
 
     @property
     def montantRemise(self):
-        prix = self.total
+        prix = self.subtotal
         montant = (self.remise * prix) / 100
         return montant
 
     @property
     def montantTimbre(self):
-        prix = self.total
+        prix = self.subtotal
         montant = (self.timbre * prix) / 100
         return montant
 
-    @property
-    def prixTTC(self):
-        prix = self.total
-        montant = prix + self.montantTVA - self.montantRemise + self.timbre
-        return montant
+    # @property
+    # def prixTTC(self):
+    #     prix = self.total
+    #     montant = prix + self.montantTVA - self.montantRemise + self.timbre
+    #     return montant
 
     def __str__(self) -> str:
         return f"{self.type_fiche} {self.client.nom}"
@@ -824,21 +826,29 @@ class ProduitVenteClient(models.Model):
     )
     depot = models.ForeignKey(Depot, on_delete=models.CASCADE)
     produit = models.ForeignKey(
-        Produit, related_name="produit_vente_client", on_delete=models.CASCADE
+        Produit,
+        related_name="produit_vente_client",
+        on_delete=models.SET_NULL,
+        null=True,
     )
     quantite = models.DecimalField(max_digits=10, decimal_places=2)
     numero_lot = models.IntegerField(blank=True, null=True)
-    # ajouter qtt stock actuel
-
-    @property
-    def prixProduit(self):
-        prix = self.produit.prix_U_achat
-        return prix
+    total_prix = models.IntegerField(blank=True, null=True)
+    prix_detail_produit = models.IntegerField(blank=True, null=True)
+    prix_gros_produit = models.IntegerField(blank=True, null=True)
+    prix_autre_produit = models.IntegerField(blank=True, null=True)
+    produit_reference = models.CharField(max_length=200, null=True, blank=True)
+    # produit_reference = models.CharField(max_length=200, null=True, blank=True)
+    produit_article = models.CharField(max_length=200, null=True, blank=True)
+    produit_unite = models.CharField(max_length=200, null=True, blank=True)
 
     @property
     def qtteActProduit(self):
-        qtte = self.produit.qtteActuelStock
-        return qtte
+        if self.produit:
+            qtte = self.produit.qtteActuelStock
+        if self.produit:
+            return qtte
+        return "deleted"
 
     @property
     def numeroVente(self):

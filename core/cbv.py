@@ -379,7 +379,7 @@ class FicheCreditGetPost(generics.ListCreateAPIView):
             serializer.save(saisie_par=request.user)
             fiche = serializer.instance
             caisse = fiche.caisse
-            caisse.montant_credit += fiche.prixTTC
+            caisse.montant_credit += fiche.total
             caisse.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.data, status=status.HTTP_400_BAD_REQUEST)
@@ -454,7 +454,7 @@ class FicheDebitGetPost(generics.ListCreateAPIView):
             fiche = serializer.instance
             fiche = serializer.instance
             caisse = fiche.caisse
-            caisse.montant_debit += fiche.prixTTC
+            caisse.montant_debit += fiche.total
             caisse.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.data, status=status.HTTP_400_BAD_REQUEST)
@@ -969,19 +969,19 @@ class FicheVenteClientGetPost(generics.ListCreateAPIView):
         )
         if serializer.is_valid():
             # self.object = self.get_object()
-            # total = self.object.prixTTC
+            # total = self.object.total
             # payed = self.object.montant_reg_client
             # self.object.reste_a_payer = total - payed
             # self.object.save()
             serializer.save(saisie_par=request.user)
             serializer.instance.reste_a_payer = (
-                serializer.instance.prixTTC - serializer.instance.montant_reg_client
+                serializer.instance.total - serializer.instance.montant_reg_client
             )
             serializer.instance.save()
             for prod in serializer.instance.produits.all():
                 prod.produit.qtte_vendue += prod.quantite
                 prod.produit.save()
-            # solde = serializer.instance.prixTTC - serializer.instance.montant_reg_client
+            # solde = serializer.instance.total - serializer.instance.montant_reg_client
             # serializer.instance.client.solde += solde
             # serializer.instance.client.save()
             caisse = serializer.instance.caisse
@@ -989,7 +989,7 @@ class FicheVenteClientGetPost(generics.ListCreateAPIView):
             caisse.save()
             client = serializer.instance.client
             client.solde += (
-                serializer.instance.prixTTC - serializer.instance.montant_reg_client
+                serializer.instance.total - serializer.instance.montant_reg_client
             )
             client.save()
             print("posted successfully")
@@ -1020,7 +1020,7 @@ class FicheVenteClientPk(generics.RetrieveUpdateDestroyAPIView):
         if serializer.is_valid(raise_exception=True):
             serializer.save(modifie_par=request.user)
             serializer.instance.reste_a_payer = (
-                serializer.instance.prixTTC - serializer.instance.montant_reg_client
+                serializer.instance.total - serializer.instance.montant_reg_client
             )
             serializer.instance.save()
             # serializer.instance
@@ -1036,7 +1036,7 @@ class FicheVenteClientPk(generics.RetrieveUpdateDestroyAPIView):
             # print(tousVentes)
             for v in tousVentes:
                 print(v.reste_a_payer)
-                clientSolde += v.prixTTC - v.montant_reg_client
+                clientSolde += v.total - v.montant_reg_client
 
             # print(clientSolde)
             instanceClient.solde = clientSolde
@@ -1047,19 +1047,20 @@ class FicheVenteClientPk(generics.RetrieveUpdateDestroyAPIView):
             produits = serializer.instance.produits.all()
             for produit in produits:
                 totalAchete = 0
-                filterProd = Produit.objects.get(id=produit.produit.id)
-                # prod = Produit.objects.get(id=filterProd.id)
-                produitVente = ProduitVenteClient.objects.filter(
-                    produit__id=filterProd.id
-                )
-                # filterProd.qtte_vendue = 0
-                for pV in produitVente:
-                    totalAchete = totalAchete + pV.quantite
-                    # filterProd.qtte_vendue += pV.quantite
-                    # print(pV.quantite)
-                # print(totalAchete)
-                filterProd.qtte_vendue = totalAchete
-                filterProd.save()
+                if produit.produit:
+                    filterProd = Produit.objects.get(id=produit.produit.id)
+                    # prod = Produit.objects.get(id=filterProd.id)
+                    produitVente = ProduitVenteClient.objects.filter(
+                        produit__id=filterProd.id
+                    )
+                    # filterProd.qtte_vendue = 0
+                    for pV in produitVente:
+                        totalAchete = totalAchete + pV.quantite
+                        # filterProd.qtte_vendue += pV.quantite
+                        # print(pV.quantite)
+                    # print(totalAchete)
+                    filterProd.qtte_vendue = totalAchete
+                    filterProd.save()
                 # print(prod.qtte_vendue)
 
         return Response(serializer.data)
