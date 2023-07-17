@@ -13,6 +13,7 @@ from datetime import datetime
 from .custom_permissions import IsSPUser
 from .models import ProduitVenteClient
 from .models import Produit
+from rest_framework.views import APIView
 
 # ----------------------------------------------SELLING POINT----------------------------------------------------------
 
@@ -405,6 +406,30 @@ class FicheCreditPk(generics.RetrieveUpdateDestroyAPIView):
     def perform_update(self, serializer):
         serializer.save(modifie_par=self.request.user)
 
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        # instance = self.get_object()
+
+        # Access the original instance information before modifications
+        original_instance_data = serializers.FicheCreditSerializer(instance).data
+        original_montant = original_instance_data.get("total")
+
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        if serializer.is_valid(raise_exception=True):
+            serializer.save(modifie_par=request.user)
+            # serializer.instance.reste_a_payer = (
+            #     serializer.instance.total - serializer.instance.montant_reg_client
+            # )
+            # serializer.instance.save()
+
+            caisse = serializer.instance.caisse
+            caisse.montant_credit += original_montant - serializer.instance.total
+            caisse.save()
+            # serializer.save(saisie_par=request.user)
+            serializer.instance.save()
+
+        return Response(serializer.data)
+
 
 class FicheDebitGetPost(generics.ListCreateAPIView):
     queryset = models.FicheDebit.objects.all()
@@ -479,6 +504,30 @@ class FicheDebitPk(generics.RetrieveUpdateDestroyAPIView):
 
     def perform_update(self, serializer):
         serializer.save(modifie_par=self.request.user)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        # instance = self.get_object()
+
+        # Access the original instance information before modifications
+        original_instance_data = serializers.FicheDebitSerializer(instance).data
+        original_montant = original_instance_data.get("total")
+
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        if serializer.is_valid(raise_exception=True):
+            serializer.save(modifie_par=request.user)
+            # serializer.instance.reste_a_payer = (
+            #     serializer.instance.total - serializer.instance.montant_reg_client
+            # )
+            # serializer.instance.save()
+
+            caisse = serializer.instance.caisse
+            caisse.montant_debit += original_montant - serializer.instance.total
+            caisse.save()
+            # serializer.save(saisie_par=request.user)
+            serializer.instance.save()
+
+        return Response(serializer.data)
 
 
 class VendeurGetPost(generics.ListCreateAPIView):
@@ -602,6 +651,32 @@ class FraisGeneralesPk(generics.RetrieveUpdateDestroyAPIView):
     def perform_update(self, serializer):
         serializer.save(modifie_par=self.request.user)
 
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        # instance = self.get_object()
+
+        # Access the original instance information before modifications
+        original_instance_data = serializers.FraisGeneralesSerializer(instance).data
+        original_montant = original_instance_data.get("montant")
+
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        if serializer.is_valid(raise_exception=True):
+            serializer.save(modifie_par=request.user)
+            # serializer.instance.reste_a_payer = (
+            #     serializer.instance.total - serializer.instance.montant_reg_client
+            # )
+            # serializer.instance.save()
+
+            caisse = serializer.instance.caisse
+            caisse.montant_frais_generales += (
+                original_montant - serializer.instance.montant
+            )
+            caisse.save()
+            # serializer.save(saisie_par=request.user)
+            serializer.instance.save()
+
+        return Response(serializer.data)
+
 
 # -----------------------------------------------FOURNISSEUR------------------------------------------------
 
@@ -631,7 +706,7 @@ class FournisseurGetPost(generics.ListCreateAPIView):
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.data, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class FournisseurPk(generics.RetrieveUpdateDestroyAPIView):
@@ -652,6 +727,63 @@ class FournisseurPk(generics.RetrieveUpdateDestroyAPIView):
         return queryset
 
 
+class FicheACFournisseurGetPost(generics.ListAPIView):
+    queryset = models.FicheAchatCommandeFournisseur.objects.all()
+    serializer_class = serializers.FicheACFournisseurSerializer
+    permission_classes = [IsAuthenticated, DjangoModelPermissionsOrAnonReadOnly]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["fournisseur", "action", "mode_reglement"]
+
+    def get_queryset(self):
+        # date1 = self.request.query_params.get("date1")
+        # if not date1:
+        #     date1 = (
+        #         models.FicheAchatCommandeFournisseur.objects.filter(type_fiche="Achat")
+        #         .first()
+        #         .date
+        #     )
+        # date2 = self.request.query_params.get("date2")
+        # if not date2:
+        #     date2 = datetime.today().strftime("%Y-%m-%d")
+
+        sp = self.request.query_params.get("selling_point")
+
+        queryset = models.FicheAchatCommandeFournisseur.objects.all()
+        if not self.request.user.is_superuser:
+            queryset = models.FicheAchatCommandeFournisseur.objects.filter(
+                selling_point=self.request.user.vendeur.selling_point,
+                # type_fiche="Achat",
+                # date__range=[date1, date2],
+            )
+        return queryset
+
+
+class FicheACFournisseurPk(generics.RetrieveUpdateDestroyAPIView):
+    queryset = models.FicheAchatCommandeFournisseur.objects.all()
+    serializer_class = serializers.FicheACFournisseurSerializer
+    permission_classes = [
+        IsAuthenticated,
+        DjangoModelPermissionsOrAnonReadOnly,
+        IsSPUser,
+    ]
+
+    def get_queryset(self):
+        queryset = models.FicheAchatCommandeFournisseur.objects.all()
+        if not self.request.user.is_superuser:
+            queryset = queryset.filter(
+                selling_point=self.request.user.vendeur.selling_point
+            )
+        return queryset
+
+    def perform_update(self, serializer):
+        serializer.save(modifie_par=self.request.user)
+
+    def list(self, request):
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = serializers.FicheACFournisseurSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+
 class FicheAchatFournisseurGetPost(generics.ListCreateAPIView):
     queryset = models.FicheAchatCommandeFournisseur.objects.filter(type_fiche="Achat")
     serializer_class = serializers.FicheACFournisseurSerializer
@@ -660,27 +792,30 @@ class FicheAchatFournisseurGetPost(generics.ListCreateAPIView):
     filterset_fields = ["fournisseur", "action", "mode_reglement"]
 
     def get_queryset(self):
-        date1 = self.request.query_params.get("date1")
-        if not date1:
-            date1 = (
-                models.FicheAchatCommandeFournisseur.objects.filter(type_fiche="Achat")
-                .first()
-                .date
-            )
-        date2 = self.request.query_params.get("date2")
-        if not date2:
-            date2 = datetime.today().strftime("%Y-%m-%d")
+        # date1 = self.request.query_params.get("date1")
+        # if not date1:
+        #     date1 = (
+        #         models.FicheAchatCommandeFournisseur.objects.filter(type_fiche="Achat")
+        #         .first()
+        #         .date
+        #     )
+        # date2 = self.request.query_params.get("date2")
+        # if not date2:
+        #     date2 = datetime.today().strftime("%Y-%m-%d")
 
         sp = self.request.query_params.get("selling_point")
 
         queryset = models.FicheAchatCommandeFournisseur.objects.filter(
-            type_fiche="Achat", date__range=[date1, date2], selling_point=sp
+            type_fiche="Achat"
+            # , date__range=[date1, date2]
+            ,
+            # selling_point=sp,
         )
         if not self.request.user.is_superuser:
             queryset = models.FicheAchatCommandeFournisseur.objects.filter(
                 selling_point=self.request.user.vendeur.selling_point,
                 type_fiche="Achat",
-                date__range=[date1, date2],
+                # date__range=[date1, date2],
             )
         return queryset
 
@@ -731,6 +866,84 @@ class FicheAchatFournisseurPk(generics.RetrieveUpdateDestroyAPIView):
     def perform_update(self, serializer):
         serializer.save(modifie_par=self.request.user, type_fiche="Achat")
 
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        # instance = self.get_object()
+
+        # Access the original instance information before modifications
+        original_instance_data = serializers.FicheACFournisseurSerializer(instance).data
+        original_montantregfour = original_instance_data.get("montantregfour")
+        original_produits = original_instance_data.get("produits")
+
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        if serializer.is_valid(raise_exception=True):
+            serializer.save(modifie_par=request.user)
+            # serializer.instance.reste_a_payer = (
+            #     serializer.instance.total - serializer.instance.montant_reg_client
+            # )
+            # serializer.instance.save()
+            # serializer.instance
+            # Updating the Caisse
+
+            instanceCisse = serializer.instance.caisse
+
+            # Updating the clients Solde
+            fournisseur = serializer.instance.fournisseur
+            fournisseur.solde += (
+                original_montantregfour - serializer.instance.montantregfour
+            )
+            fournisseur.save()
+            caisse = serializer.instance.caisse
+            caisse.montant_achats_four += (
+                original_montantregfour - serializer.instance.montantregfour
+            )
+            caisse.save()
+            # serializer.save(saisie_par=request.user)
+            # serializer.instance.reste_a_payer = (
+            #     serializer.instance.total - serializer.instance.montant_reg_client
+            # )
+            # serializer.instance.save()
+
+            produits = serializer.instance.produits.all()
+            for produit in produits:
+                if produit.produit:
+                    old_prod = {}
+                    for prod in original_produits:
+                        if prod["produit"] == produit.produit.id:
+                            old_prod = prod
+
+                    filterProd = Produit.objects.get(id=produit.produit.id)
+                    filterProd.qtte_vendue += produit.quantite - old_prod["quantite"]
+                    filterProd.save()
+                produit.prix_achat_produit = old_prod["prix_achat_produit"]
+                produit.produit_article = old_prod["produit_article"]
+                produit.prix_detail_produit = old_prod["prix_detail_produit"]
+                produit.prix_gros_produit = old_prod["prix_gros_produit"]
+                produit.prix_autre_produit = old_prod["prix_autre_produit"]
+                produit.produit_unite = old_prod["produit_unite"]
+                produit.total_prix = old_prod["total_prix"]
+                produit.save()
+                print(produit)
+
+                # totalAchete = 0
+                # if produit.produit:
+                #     filterProd = Produit.objects.get(id=produit.produit.id)
+                #     # prod = Produit.objects.get(id=filterProd.id)
+                #     produitVente = ProduitVenteClient.objects.filter(
+                #         produit__id=filterProd.id
+                #     )
+                #     # filterProd.qtte_vendue = 0
+                #     for pV in produitVente:
+                #         totalAchete = totalAchete + pV.quantite
+                #         # filterProd.qtte_vendue += pV.quantite
+                #         # print(pV.quantite)
+                #     # print(totalAchete)
+                #     filterProd.qtte_vendue = totalAchete
+                #     filterProd.save()
+                # print(prod.qtte_vendue)
+
+        return Response(serializer.data)
+
 
 class FicheCommandeFournisseurGetPost(generics.ListCreateAPIView):
     queryset = models.FicheAchatCommandeFournisseur.objects.filter(
@@ -761,7 +974,7 @@ class FicheCommandeFournisseurGetPost(generics.ListCreateAPIView):
         if serializer.is_valid():
             serializer.save(saisie_par=request.user, type_fiche="commande")
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.data, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class FicheCommandeFournisseurPk(generics.RetrieveUpdateDestroyAPIView):
@@ -817,7 +1030,7 @@ class PayementFournisseurGetPost(generics.ListCreateAPIView):
             pay.fournisseur.solde -= pay.montant
             pay.fournisseur.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.data, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class PayementFournisseurPk(generics.RetrieveUpdateDestroyAPIView):
@@ -839,6 +1052,35 @@ class PayementFournisseurPk(generics.RetrieveUpdateDestroyAPIView):
 
     def perform_update(self, serializer):
         serializer.save(modifie_par=self.request.user)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        # instance = self.get_object()
+
+        # Access the original instance information before modifications
+        original_instance_data = serializers.PayementFournisseurSerializer(
+            instance
+        ).data
+        original_montant = original_instance_data.get("montant")
+
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        if serializer.is_valid(raise_exception=True):
+            serializer.save(modifie_par=request.user)
+            # serializer.instance.reste_a_payer = (
+            #     serializer.instance.total - serializer.instance.montant_reg_client
+            # )
+            serializer.instance.save()
+
+            fournisseur = serializer.instance.fournisseur
+            fournisseur.solde += original_montant - serializer.instance.montant
+            fournisseur.save()
+            caisse = serializer.instance.caisse
+            caisse.montant_pay_four += original_montant - serializer.instance.montant
+            caisse.save()
+            # serializer.save(saisie_par=request.user)
+            serializer.instance.save()
+
+        return Response(serializer.data)
 
 
 class RetourFournisseurGetPost(generics.ListCreateAPIView):
@@ -872,7 +1114,7 @@ class RetourFournisseurGetPost(generics.ListCreateAPIView):
             caisse.montant_pay_four += serializer.instance.montant
             caisse.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.data, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class RetoursFournisseurPk(generics.RetrieveUpdateDestroyAPIView):
@@ -924,7 +1166,7 @@ class ClientGetPost(generics.ListCreateAPIView):
         if serializer.is_valid():
             serializer.save(saisie_par=request.user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.data, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ClientPk(generics.RetrieveUpdateDestroyAPIView):
@@ -968,11 +1210,6 @@ class FicheVenteClientGetPost(generics.ListCreateAPIView):
             data=request.data, context={"request": request}
         )
         if serializer.is_valid():
-            # self.object = self.get_object()
-            # total = self.object.total
-            # payed = self.object.montant_reg_client
-            # self.object.reste_a_payer = total - payed
-            # self.object.save()
             serializer.save(saisie_par=request.user)
             serializer.instance.reste_a_payer = (
                 serializer.instance.total - serializer.instance.montant_reg_client
@@ -981,9 +1218,7 @@ class FicheVenteClientGetPost(generics.ListCreateAPIView):
             for prod in serializer.instance.produits.all():
                 prod.produit.qtte_vendue += prod.quantite
                 prod.produit.save()
-            # solde = serializer.instance.total - serializer.instance.montant_reg_client
-            # serializer.instance.client.solde += solde
-            # serializer.instance.client.save()
+
             caisse = serializer.instance.caisse
             caisse.montant_vente_client += serializer.instance.montant_reg_client
             caisse.save()
@@ -1016,6 +1251,13 @@ class FicheVenteClientPk(generics.RetrieveUpdateDestroyAPIView):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
+        # instance = self.get_object()
+
+        # Access the original instance information before modifications
+        original_instance_data = serializers.FicheVenteSerializer(instance).data
+        original_montant_reg_client = original_instance_data.get("montant_reg_client")
+        original_produits = original_instance_data.get("produits")
+
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         if serializer.is_valid(raise_exception=True):
             serializer.save(modifie_par=request.user)
@@ -1029,38 +1271,58 @@ class FicheVenteClientPk(generics.RetrieveUpdateDestroyAPIView):
             instanceCisse = serializer.instance.caisse
 
             # Updating the clients Solde
-
-            instanceClient = serializer.instance.client
-            clientSolde = 0
-            tousVentes = models.FicheVenteClient.objects.filter(client=instanceClient)
-            # print(tousVentes)
-            for v in tousVentes:
-                print(v.reste_a_payer)
-                clientSolde += v.total - v.montant_reg_client
-
-            # print(clientSolde)
-            instanceClient.solde = clientSolde
-            instanceClient.save()
-
-            # Updating sold quantity for every product in the sale
+            client = serializer.instance.client
+            client.solde += (
+                original_montant_reg_client - serializer.instance.montant_reg_client
+            )
+            client.save()
+            caisse = serializer.instance.caisse
+            caisse.montant_vente_client += (
+                original_montant_reg_client - serializer.instance.montant_reg_client
+            )
+            caisse.save()
+            # serializer.save(saisie_par=request.user)
+            serializer.instance.reste_a_payer = (
+                serializer.instance.total - serializer.instance.montant_reg_client
+            )
+            serializer.instance.save()
 
             produits = serializer.instance.produits.all()
             for produit in produits:
-                totalAchete = 0
                 if produit.produit:
+                    old_prod = {}
+                    for prod in original_produits:
+                        if prod["produit"] == produit.produit.id:
+                            old_prod = prod
+
                     filterProd = Produit.objects.get(id=produit.produit.id)
-                    # prod = Produit.objects.get(id=filterProd.id)
-                    produitVente = ProduitVenteClient.objects.filter(
-                        produit__id=filterProd.id
-                    )
-                    # filterProd.qtte_vendue = 0
-                    for pV in produitVente:
-                        totalAchete = totalAchete + pV.quantite
-                        # filterProd.qtte_vendue += pV.quantite
-                        # print(pV.quantite)
-                    # print(totalAchete)
-                    filterProd.qtte_vendue = totalAchete
+                    filterProd.qtte_vendue += produit.quantite - old_prod["quantite"]
                     filterProd.save()
+                produit.prix_achat_produit = old_prod["prix_achat_produit"]
+                produit.produit_article = old_prod["produit_article"]
+                produit.prix_detail_produit = old_prod["prix_detail_produit"]
+                produit.prix_gros_produit = old_prod["prix_gros_produit"]
+                produit.prix_autre_produit = old_prod["prix_autre_produit"]
+                produit.produit_unite = old_prod["produit_unite"]
+                produit.total_prix = old_prod["total_prix"]
+                produit.save()
+                print(produit)
+
+                # totalAchete = 0
+                # if produit.produit:
+                #     filterProd = Produit.objects.get(id=produit.produit.id)
+                #     # prod = Produit.objects.get(id=filterProd.id)
+                #     produitVente = ProduitVenteClient.objects.filter(
+                #         produit__id=filterProd.id
+                #     )
+                #     # filterProd.qtte_vendue = 0
+                #     for pV in produitVente:
+                #         totalAchete = totalAchete + pV.quantite
+                #         # filterProd.qtte_vendue += pV.quantite
+                #         # print(pV.quantite)
+                #     # print(totalAchete)
+                #     filterProd.qtte_vendue = totalAchete
+                #     filterProd.save()
                 # print(prod.qtte_vendue)
 
         return Response(serializer.data)
@@ -1100,7 +1362,7 @@ class PayementClientGetPost(generics.ListCreateAPIView):
             caisse.montant_pay_client += serializer.instance.montant
             caisse.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.data, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class PayementClientPk(generics.RetrieveUpdateDestroyAPIView):
@@ -1122,6 +1384,33 @@ class PayementClientPk(generics.RetrieveUpdateDestroyAPIView):
 
     def perform_update(self, serializer):
         serializer.save(modifie_par=self.request.user)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        # instance = self.get_object()
+
+        # Access the original instance information before modifications
+        original_instance_data = serializers.PayementClientSerializer(instance).data
+        original_montant = original_instance_data.get("montant")
+
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        if serializer.is_valid(raise_exception=True):
+            serializer.save(modifie_par=request.user)
+            # serializer.instance.reste_a_payer = (
+            #     serializer.instance.total - serializer.instance.montant_reg_client
+            # )
+            serializer.instance.save()
+
+            client = serializer.instance.client
+            client.solde += original_montant - serializer.instance.montant
+            client.save()
+            caisse = serializer.instance.caisse
+            caisse.montant_pay_client += original_montant - serializer.instance.montant
+            caisse.save()
+            # serializer.save(saisie_par=request.user)
+            serializer.instance.save()
+
+        return Response(serializer.data)
 
 
 class RetourClientGetPost(generics.ListCreateAPIView):
@@ -1272,3 +1561,55 @@ class ClarquePk(generics.RetrieveUpdateDestroyAPIView):
                 selling_point=self.request.user.vendeur.selling_point
             )
         return queryset
+
+
+class SituationGleView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, format=None):
+        ventes = models.FicheVenteClient.objects.all()
+        total_ventes = 0
+        total_remises = 0
+        for vente in ventes:
+            total_ventes += vente.total
+            total_remises += vente.remise
+
+        total_achats = 0
+        achats = models.FicheAchatCommandeFournisseur.objects.filter(type_fiche="1")
+        for achat in achats:
+            total_achats += achat.prixTTC
+
+        benefice_ventes_achats = total_ventes - total_achats
+
+        retours_clients = models.RetoursClient.objects.all()
+        total_retours_clients = 0
+        for retour in retours_clients:
+            total_retours_clients += retour.montant
+
+        retours_four = models.RetoursFournisseur.objects.all()
+        tatal_retour_four = 0
+        for retour in retours_four:
+            tatal_retour_four += retour.montant
+
+        avaries = models.Avaries.objects.all()
+        total_avaries = 0
+        for ava in avaries:
+            total_avaries += ava.montant
+
+        total_benefice = (
+            total_ventes
+            - total_achats
+            + tatal_retour_four
+            - total_retours_clients
+            - total_avaries
+        )
+
+        context = {
+            "total_achats": total_achats,
+            "total_ventes": total_ventes,
+            "total_retours_clients": total_retours_clients,
+            "tatal_retour_four": tatal_retour_four,
+            "total_avaries": total_avaries,
+            "total_benefice": total_benefice,
+        }
+        return Response(context)

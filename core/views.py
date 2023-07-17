@@ -37,6 +37,9 @@ from rest_framework.permissions import (
     IsAdminUser,
     DjangoModelPermissionsOrAnonReadOnly,
 )
+from django.db.models.functions import ExtractMonth
+from datetime import datetime
+
 
 # Create your views here.
 
@@ -1008,51 +1011,216 @@ def retourClientPk(request, pk):
 
 
 @api_view(["GET"])
-@permission_classes([IsAuthenticated, DjangoModelPermissionsOrAnonReadOnly])
-def situationGle(request):
-    ventes = models.FicheVenteClient.objects.all()
+@permission_classes([IsAuthenticated])
+def statsGet(request):
+    sp_id = request.GET.get("sp_id")
+    current_year = datetime.now().year
+    current_month = datetime.now().month
+    current_month_profit = 0
+    current_month_earnings = 0
+
+    ventes = models.FicheVenteClient.objects.filter(
+        saisie_le__month=current_month, saisie_le__year=current_year
+    )
+    if sp_id:
+        ventes = ventes.filter(selling_point__id=sp_id)
+
+    current_month_sales = len(ventes)
+    for vente in ventes:
+        produits = vente.produits.all()
+        for prod in produits:
+            # if prod.prix_achat_produit is not None:  # Check if produit is not None
+            current_month_profit += (
+                prod.prix_detail_produit - prod.prix_achat_produit
+            ) * prod.quantite
+
+    for vente in ventes:
+        current_month_earnings += vente.total
+
+    months = [
+        {"name": "January", "number": 1, "total": 0},
+        {"name": "February", "number": 2, "total": 0},
+        {"name": "Mars", "number": 3, "total": 0},
+        {"name": "April", "number": 4, "total": 0},
+        {"name": "May", "number": 5, "total": 0},
+        {"name": "June", "number": 6, "total": 0},
+        {"name": "July", "number": 7, "total": 0},
+        {"name": "August", "number": 8, "total": 0},
+        {"name": "September", "number": 9, "total": 0},
+        {"name": "October", "number": 10, "total": 0},
+        {"name": "November", "number": 11, "total": 0},
+        {"name": "December", "number": 12, "total": 0},
+    ]
+    # try:
+    for month in months:
+        total_earnings = 0
+        ventes = models.FicheVenteClient.objects.filter(
+            saisie_le__month=month["number"], saisie_le__year=current_year
+        )
+        if sp_id:
+            ventes = ventes.filter(selling_point__id=sp_id)
+        for vente in ventes:
+            total_earnings += vente.total
+        month["total"] = total_earnings
+
+    stats = {
+        "monthEarnings": months,
+        "currentMonthStats": {
+            "current_month_profit": current_month_profit,
+            "current_month_earnings": current_month_earnings,
+            "current_month_sales": current_month_sales,
+        },
+    }
+
+    if request.method == "GET":
+        # serializer = serializers.RetorClientSerializer(fiches)
+        return Response(stats)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def detailedStats(request):
+    current_year = datetime.now().year
+    current_month = datetime.now().month
+    sp_id = request.GET.get("sp_id")
+    ventes = models.FicheVenteClient.objects.filter(
+        saisie_le__month=current_month, saisie_le__year=current_year
+    )
+    if sp_id:
+        ventes = ventes.filter(selling_point__id=sp_id)
     total_ventes = 0
     total_remises = 0
+    total_soldes_client = 0
     for vente in ventes:
-        total_ventes += vente.prixTTC
+        total_ventes += vente.montant_reg_client
         total_remises += vente.remise
+        # total_soldes_client += vente.total - vente.montant_reg_client
+
+    clients = models.Client.objects.all()
+    if sp_id:
+        clients = clients.filter(selling_point__id=sp_id)
+
+    for client in clients:
+        total_soldes_client += client.solde
+
+    pay_clients = models.PayementClient.objects.filter(
+        saisie_le__month=current_month, saisie_le__year=current_year
+    )
+    if sp_id:
+        pay_clients = pay_clients.filter(selling_point__id=sp_id)
+    total_pay_client = 0
+    for pay in pay_clients:
+        total_pay_client += pay.montant
+
+    pay_fournisseurs = models.PayementFournisseur.objects.filter(
+        saisie_le__month=current_month, saisie_le__year=current_year
+    )
+    if sp_id:
+        pay_fournisseurs = pay_fournisseurs.filter(selling_point__id=sp_id)
+    total_pay_four = 0
+    for pay in pay_fournisseurs:
+        total_pay_four += pay.montant
+
+    credit = models.FicheCredit.objects.filter(
+        saisie_le__month=current_month, saisie_le__year=current_year
+    )
+    if sp_id:
+        credit = credit.filter(selling_point__id=sp_id)
+    total_credit = 0
+    for pay in credit:
+        total_credit += pay.montant
+
+    debit = models.FicheDebit.objects.filter(
+        saisie_le__month=current_month, saisie_le__year=current_year
+    )
+    if sp_id:
+        debit = debit.filter(selling_point__id=sp_id)
+    total_debit = 0
+    for pay in debit:
+        total_debit += pay.montant
+
+    fraisGenerales = models.FraisGenerales.objects.filter(
+        saisie_le__month=current_month, saisie_le__year=current_year
+    )
+    if sp_id:
+        fraisGenerales = fraisGenerales.filter(selling_point__id=sp_id)
+    total_frais = 0
+    for pay in fraisGenerales:
+        total_frais += pay.montant
 
     total_achats = 0
-    achats = models.FicheAchatCommandeFournisseur.objects.filter(type_fiche="1")
+    achats = models.FicheAchatCommandeFournisseur.objects.filter(type_fiche="Achat")
+    if sp_id:
+        achats = achats.filter(selling_point__id=sp_id)
     for achat in achats:
-        total_achats += achat.prixTTC
+        total_achats += achat.montantregfour
 
     benefice_ventes_achats = total_ventes - total_achats
 
-    retours_clients = models.RetoursClient.objects.all()
+    retours_clients = models.RetoursClient.objects.filter(
+        saisie_le__month=current_month, saisie_le__year=current_year
+    )
+    if sp_id:
+        retours_clients = retours_clients.filter(selling_point__id=sp_id)
     total_retours_clients = 0
     for retour in retours_clients:
         total_retours_clients += retour.montant
 
-    retours_four = models.RetoursFournisseur.objects.all()
+    retours_four = models.RetoursFournisseur.objects.filter(
+        saisie_le__month=current_month, saisie_le__year=current_year
+    )
+    if sp_id:
+        retours_four = retours_four.filter(selling_point__id=sp_id)
     tatal_retour_four = 0
     for retour in retours_four:
         tatal_retour_four += retour.montant
 
-    avaries = models.Avaries.objects.all()
+    avaries = models.Avaries.objects.filter(
+        saisie_le__month=current_month, saisie_le__year=current_year
+    )
+    if sp_id:
+        avaries = avaries.filter(selling_point__id=sp_id)
     total_avaries = 0
     for ava in avaries:
         total_avaries += ava.montant
+
+    total_depences = (
+        total_achats
+        + total_retours_clients
+        + total_debit
+        + total_frais
+        + total_pay_four
+    )
+    total_entrees = tatal_retour_four + total_ventes + total_credit + total_pay_client
 
     total_benefice = (
         total_ventes
         - total_achats
         + tatal_retour_four
         - total_retours_clients
-        - total_avaries
+        # - total_avaries
+        - total_pay_four
+        + total_pay_client
+        - total_frais
+        + total_credit
+        - total_debit
     )
 
     context = {
         "total_achats": total_achats,
         "total_ventes": total_ventes,
+        "total_pay_four": total_pay_four,
+        "total_pay_client": total_pay_client,
+        "total_frais": total_frais,
+        "total_credit": total_credit,
+        "total_debit": total_debit,
         "total_retours_clients": total_retours_clients,
         "tatal_retour_four": tatal_retour_four,
         "total_avaries": total_avaries,
         "total_benefice": total_benefice,
+        "total_depences": total_depences,
+        "total_entrees": total_entrees,
+        "total_remises": total_remises,
+        "total_soldes_client": total_soldes_client,
     }
     return Response(context)

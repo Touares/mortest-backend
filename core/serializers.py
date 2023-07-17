@@ -19,6 +19,8 @@ from . import models
 from .custom_serializer_field import *
 from drf_writable_nested.serializers import WritableNestedModelSerializer
 
+# from users.serializers import UserSerializer
+
 # ---------------------------------------------- SELLING POINT ---------------------------------------------------
 
 
@@ -61,8 +63,8 @@ class CaisseSerializer(serializers.ModelSerializer):
             "selling_point",
             "nom",
             "caisse",
-            "wilaya",
-            "ville",
+            # "wilaya",
+            # "ville",
             "solde",
             "montant_achats_four",
             "montant_retour_four",
@@ -380,10 +382,10 @@ class FournisseurSerializer(serializers.ModelSerializer):
 class ProduitAchatCommandeFournisseurSerializer(serializers.ModelSerializer):
     produit = ProduitCustomRelationField(slug_field="id")
     depot = DepotCustomRelationField(slug_field="id")
-    date_de_fabrication = serializers.DateField()
-    date_dexpiration = serializers.DateField()
+    # date_de_fabrication = serializers.DateField()
+    # date_dexpiration = serializers.DateField()
     unit_choices = (("m²", "m²"), ("m", "m"), ("L", "L"), ("Kg", "Kg"), ("g", "g"))
-    unit = serializers.ChoiceField(unit_choices)
+    # unit = serializers.ChoiceField(unit_choices)
     prix = serializers.ReadOnlyField(source="prixProduit")
     qtteAct = serializers.ReadOnlyField(source="qtteActProduit")
 
@@ -397,9 +399,17 @@ class ProduitAchatCommandeFournisseurSerializer(serializers.ModelSerializer):
             "numero_lot",
             "date_de_fabrication",
             "date_dexpiration",
-            "unit",
+            # "unit",
             "prix",
             "qtteAct",
+            "produit_reference",
+            # "numeroVente",
+            "produit_article",
+            "prix_detail_produit",
+            # "prix_gros_produit",
+            # "prix_autre_produit",
+            "produit_unite",
+            "total_prix",
         ]
 
 
@@ -409,9 +419,8 @@ class FicheACFournisseurSerializer(WritableNestedModelSerializer):
     # type_fiche_choices = (('1',"Achat"),('2',"Commande"))
     # type_fiche=serializers.ChoiceField(default=1,choices=type_fiche_choices)
     action_choices = (
-        ("facture", "facture"),
-        ("bon", "bon"),
-        ("bon de commande", "bon de commande"),
+        ("Achat", "Achat"),
+        ("Commande", "Commande"),
     )
     action = serializers.ChoiceField(default=1, choices=action_choices)
     reglement_choices = (
@@ -434,6 +443,9 @@ class FicheACFournisseurSerializer(WritableNestedModelSerializer):
     montantremise = serializers.ReadOnlyField(source="montantRemise")
     prixttc = serializers.ReadOnlyField(source="prixTTC")
     totalachats = serializers.ReadOnlyField(source="total")
+    supplierData = serializers.SerializerMethodField()
+    caisseData = serializers.SerializerMethodField()
+    # userData = serializers.SerializerMethodField()
 
     class Meta:
         model = models.FicheAchatCommandeFournisseur
@@ -449,6 +461,8 @@ class FicheACFournisseurSerializer(WritableNestedModelSerializer):
             "modifie_par",
             "action",
             "numero",
+            "total",
+            "subtotal",
             "date",
             "montantregfour",
             "mode_reglement",
@@ -461,6 +475,9 @@ class FicheACFournisseurSerializer(WritableNestedModelSerializer):
             "montanttva",
             "montantremise",
             "prixttc",
+            "supplierData",
+            "caisseData",
+            # "userData",
         ]
 
         read_only_fields = [
@@ -486,10 +503,40 @@ class FicheACFournisseurSerializer(WritableNestedModelSerializer):
                     )
         fiche = models.FicheAchatCommandeFournisseur.objects.create(**validated_data)
         for produit_data in produits_data:
-            models.ProduitAchatCommandeFournisseur.objects.create(
+            prodAchat = models.ProduitAchatCommandeFournisseur.objects.create(
                 achat=fiche, **produit_data
             )
+            prodData = produit_data["produit"]
+            prod = Produit.objects.get(id=prodData.id)
+            prod.prix_detail = produit_data["prix_detail_produit"]
+            prod.save()
+            if prod:
+                # if prod
+                prodAchat.total_prix = prod.prix_detail * prodAchat.quantite
+                prodAchat.prix_detail_produit = prod.prix_detail
+                prodAchat.prix_gros_produit = prod.prix_vente_gros
+                prodAchat.prix_autre_produit = prod.prix_vente_autre
+                prodAchat.produit_reference = prod.reference
+                prodAchat.produit_article = prod.article
+                prodAchat.produit_unite = prod.unit
+            prodAchat.save()
         return fiche
+
+    def get_supplierData(self, obj):
+        id = obj.fournisseur.id
+        fournisseur = Fournisseur.objects.get(id=id)
+        serializer = FournisseurSerializer(fournisseur)
+        return serializer.data
+
+    def get_caisseData(self, obj):
+        caisse = obj.caisse
+        serializer = CaisseSerializer(caisse)
+        return serializer.data
+
+    # def get_userData(self, obj):
+    #     user = obj.saisie_par
+    #     serializer = UserSerializer(user)
+    #     return serializer.data
 
     # def update(self, instance, validated_data):
     #     instance.type_fiche = validated_data.get('type_fiche', instance.type_fiche)
@@ -535,7 +582,7 @@ class PayementFournisseurSerializer(serializers.ModelSerializer):
     fournisseur = serializers.SlugRelatedField(
         queryset=Fournisseur.objects.all(), slug_field="id"
     )
-    achat = AchatCustomRelationField(slug_field="id")
+    # achat = AchatCustomRelationField(slug_field="id")
     reglement_data = (
         ("A terme", "A terme"),
         ("Espece", "Espece"),
@@ -545,6 +592,9 @@ class PayementFournisseurSerializer(serializers.ModelSerializer):
     reglement = serializers.ChoiceField(default=1, choices=reglement_data)
     caisse = CaisseCustomRelationField(slug_field="id")
     number = serializers.ReadOnlyField(source="increment_number")
+    supplierData = serializers.SerializerMethodField()
+    caisseData = serializers.SerializerMethodField()
+
     # date = serializers.DateField()
 
     class Meta:
@@ -552,22 +602,35 @@ class PayementFournisseurSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "selling_point",
-            "date",
+            # "date",
             "fournisseur",
             "number",
             "saisie_le",
             "modilfié_le",
             "saisie_par",
             "modifie_par",
-            "achat",
+            # "achat",
             "montant",
             "reglement",
             "caisse",
             "observation",
+            "supplierData",
+            "caisseData",
         ]
 
         read_only_fields = ["saisie_le", "modilfié_le", "saisie_par", "modifie_par"]
+
+    def get_supplierData(self, obj):
+        id = obj.fournisseur.id
+        fournisseur = Fournisseur.objects.get(id=id)
+        serializer = FournisseurSerializer(fournisseur)
+        return serializer.data
         # depth = 1
+
+    def get_caisseData(self, obj):
+        caisse = obj.caisse
+        serializer = CaisseSerializer(caisse)
+        return serializer.data
 
     # def validate(self, data):
     #     mont = data['montant']
@@ -734,6 +797,7 @@ class ProduitVenteClientSerializer(serializers.ModelSerializer):
             "qtteAct",
             "produit_reference",
             "numeroVente",
+            "prix_achat_produit",
             "produit_article",
             "prix_detail_produit",
             "prix_gros_produit",
@@ -903,8 +967,9 @@ class FicheVenteSerializer(WritableNestedModelSerializer):
             if prod:
                 # if prod
                 prodVente.total_prix = prod.prix_detail * prodVente.quantite
-                prodVente.prix_detail_produit = prod.prix_detail
                 prodVente.prix_gros_produit = prod.prix_vente_gros
+                prodVente.prix_detail_produit = prod.prix_detail
+                prodVente.prix_achat_produit = prod.prix_U_achat
                 prodVente.prix_autre_produit = prod.prix_vente_autre
                 prodVente.produit_reference = prod.reference
                 prodVente.produit_article = prod.article
