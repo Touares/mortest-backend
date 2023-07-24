@@ -228,24 +228,24 @@ class AvariesGetPost(generics.ListCreateAPIView):
     filterset_fields = ["produit", "depot"]
 
     def get_queryset(self):
-        date1 = self.request.query_params.get("date1")
-        if not date1:
-            if models.Vendeur.objects.all().first():
-                date1 = models.Vendeur.objects.all().first().date
-            else:
-                date1 = datetime.today().strftime("%Y-%m-%d")
-        date2 = self.request.query_params.get("date2")
-        if not date2:
-            date2 = datetime.today().strftime("%Y-%m-%d")
+        # date1 = self.request.query_params.get("date1")
+        # if not date1:
+        #     if models.Vendeur.objects.all().first():
+        #         date1 = models.Vendeur.objects.all().first().date
+        #     else:
+        #         date1 = datetime.today().strftime("%Y-%m-%d")
+        # date2 = self.request.query_params.get("date2")
+        # if not date2:
+        #     date2 = datetime.today().strftime("%Y-%m-%d")
 
-        sp = self.request.query_params.get("selling_point")
-        queryset = models.Avaries.objects.filter(
-            selling_point=sp, date__range=[date1, date2]
+        # sp = self.request.query_params.get("selling_point")
+        queryset = models.Avaries.objects.all(
+            # selling_point=sp, date__range=[date1, date2]
         )
         if not self.request.user.is_superuser:
             queryset = models.Avaries.objects.filter(
                 selling_point=self.request.user.vendeur.selling_point,
-                date__range=[date1, date2],
+                # date__range=[date1, date2],
             )
         return queryset
 
@@ -263,7 +263,11 @@ class AvariesGetPost(generics.ListCreateAPIView):
             data=request.data, context={"request": request}
         )
         if serializer.is_valid():
-            serializer.save()
+            serializer.save(saisie_par=request.user)
+            proddepot = models.ProduitDepot.objects.get(
+                produit=serializer.instance.produit, depot=serializer.instance.depot
+            )
+            proddepot.quantite -= serializer.instance.qtte
             serializer.instance.produit.qtte_avarie += serializer.instance.qtte
             serializer.instance.produit.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -327,6 +331,20 @@ class DepotPk(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         queryset = models.Depot.objects.all()
+        if not self.request.user.is_superuser:
+            queryset = queryset.filter(
+                selling_point=self.request.user.vendeur.selling_point
+            )
+        return queryset
+
+
+class ProduitDepotPk(generics.RetrieveUpdateDestroyAPIView):
+    queryset = models.ProduitDepot.objects.all()
+    serializer_class = serializers.ProduitDepotSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = models.ProduitDepot.objects.all()
         if not self.request.user.is_superuser:
             queryset = queryset.filter(
                 selling_point=self.request.user.vendeur.selling_point
@@ -575,6 +593,11 @@ class VendeurPk(generics.RetrieveUpdateDestroyAPIView):
         return queryset
 
 
+class TypeFgGetPost(generics.ListCreateAPIView):
+    queryset = models.TypeFG.objects.all()
+    serializer_class = serializers.TypeFGSerializer
+
+
 class FraisGeneralesGetPost(generics.ListCreateAPIView):
     queryset = models.FraisGenerales.objects.all()
     serializer_class = serializers.FraisGeneralesSerializer
@@ -587,24 +610,24 @@ class FraisGeneralesGetPost(generics.ListCreateAPIView):
     filterset_fields = ["reglement", "caisse", "type"]
 
     def get_queryset(self):
-        date1 = self.request.query_params.get("date1")
-        if not date1:
-            if models.FraisGenerales.objects.all().first():
-                date1 = models.FraisGenerales.objects.all().first().date
-            else:
-                date1 = datetime.today().strftime("%Y-%m-%d")
-        date2 = self.request.query_params.get("date2")
-        if not date2:
-            date2 = datetime.today().strftime("%Y-%m-%d")
+        # date1 = self.request.query_params.get("date1")
+        # if not date1:
+        #     if models.FraisGenerales.objects.all().first():
+        #         date1 = models.FraisGenerales.objects.all().first().date
+        #     else:
+        #         date1 = datetime.today().strftime("%Y-%m-%d")
+        # date2 = self.request.query_params.get("date2")
+        # if not date2:
+        #     date2 = datetime.today().strftime("%Y-%m-%d")
 
-        sp = self.request.query_params.get("selling_point")
-        queryset = models.FraisGenerales.objects.filter(
-            selling_point=sp, date__range=[date1, date2]
+        # sp = self.request.query_params.get("selling_point")
+        queryset = models.FraisGenerales.objects.all(
+            # selling_point=sp, date__range=[date1, date2]
         )
         if not self.request.user.is_superuser:
             queryset = models.FraisGenerales.objects.filter(
                 selling_point=self.request.user.vendeur.selling_point,
-                date__range=[date1, date2],
+                # date__range=[date1, date2],
             )
         return queryset
 
@@ -628,7 +651,7 @@ class FraisGeneralesGetPost(generics.ListCreateAPIView):
             caisse.montant_frais_generales += frais.montant
             caisse.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.data, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class FraisGeneralesPk(generics.RetrieveUpdateDestroyAPIView):
@@ -833,6 +856,30 @@ class FicheAchatFournisseurGetPost(generics.ListCreateAPIView):
             for prod in serializer.instance.produits.all():
                 prod.produit.qtte_achete += prod.quantite
                 prod.produit.save()
+                deptProd, created = models.ProduitDepot.objects.get_or_create(
+                    produit=prod.produit,
+                    depot=prod.depot,
+                    selling_point=prod.depot.selling_point,
+                )
+                if created:
+                    # Object was just created, perform actions for newly created objects
+                    # For example, you can send a success message
+                    deptProd.quantite = prod.quantite
+                    deptProd.total_prix = prod.produit.prix_detail * deptProd.quantite
+                    deptProd.prix_detail_produit = prod.produit.prix_detail
+                    deptProd.prix_gros_produit = prod.produit.prix_vente_gros
+                    deptProd.prix_autre_produit = prod.produit.prix_vente_autre
+                    deptProd.produit_reference = prod.produit.reference
+                    deptProd.produit_article = prod.produit.article
+                    deptProd.produit_unite = prod.produit.unit
+                    deptProd.save()
+                else:
+                    # Object already exists, augment its quantity
+                    deptProd.quantite += prod.quantite
+                    deptProd.save()
+
+                    # serializer = self.get_serializer(obj)
+                    # return Response({'message': 'Object created successfully'}, status=status.HTTP_201_CREATED)
             caisse = serializer.instance.caisse
             caisse.montant_achats_four -= serializer.instance.montantregfour
             caisse.save()
@@ -1216,6 +1263,11 @@ class FicheVenteClientGetPost(generics.ListCreateAPIView):
             )
             serializer.instance.save()
             for prod in serializer.instance.produits.all():
+                proddepot = models.ProduitDepot.objects.get(
+                    produit=prod.produit, depot=prod.depot
+                )
+                proddepot.quantite -= prod.quantite
+                proddepot.save()
                 prod.produit.qtte_vendue += prod.quantite
                 prod.produit.save()
 
@@ -1294,7 +1346,11 @@ class FicheVenteClientPk(generics.RetrieveUpdateDestroyAPIView):
                     for prod in original_produits:
                         if prod["produit"] == produit.produit.id:
                             old_prod = prod
-
+                    proddepot = models.ProduitDepot.objects.get(
+                        produit=produit.produit, depot=produit.depot
+                    )
+                    proddepot.quantite -= produit.quantite - old_prod["quantite"]
+                    proddepot.save()
                     filterProd = Produit.objects.get(id=produit.produit.id)
                     filterProd.qtte_vendue += produit.quantite - old_prod["quantite"]
                     filterProd.save()
@@ -1306,7 +1362,7 @@ class FicheVenteClientPk(generics.RetrieveUpdateDestroyAPIView):
                 produit.produit_unite = old_prod["produit_unite"]
                 produit.total_prix = old_prod["total_prix"]
                 produit.save()
-                print(produit)
+                # print(produit)
 
                 # totalAchete = 0
                 # if produit.produit:

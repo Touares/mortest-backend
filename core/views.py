@@ -1182,7 +1182,8 @@ def detailedStats(request):
         avaries = avaries.filter(selling_point__id=sp_id)
     total_avaries = 0
     for ava in avaries:
-        total_avaries += ava.montant
+        if ava.produit:
+            total_avaries += ava.montant
 
     total_depences = (
         total_achats

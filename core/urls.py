@@ -38,6 +38,9 @@ urlpatterns = [
     path("depot_get_post", cbv.DepotGetPost.as_view(), name="depot_get_post"),
     path("depot_pk/<int:pk>", cbv.DepotPk.as_view(), name="depot_pk"),
     path(
+        "produitdepot_pk/<int:pk>", cbv.ProduitDepotPk.as_view(), name="produitdepot_pk"
+    ),
+    path(
         "fiche_credit_get_post",
         cbv.FicheCreditGetPost.as_view(),
         name="fiche_credit_get_post",
@@ -104,6 +107,11 @@ urlpatterns = [
         "fraisgenerales_get_post",
         cbv.FraisGeneralesGetPost.as_view(),
         name="fraisgenerales_get_post",
+    ),
+    path(
+        "typefg_get_post",
+        cbv.TypeFgGetPost.as_view(),
+        name="typefg_get_post",
     ),
     path(
         "fraisgenerales_pk/<int:pk>",

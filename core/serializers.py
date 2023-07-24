@@ -94,7 +94,16 @@ class CaisseSerializer(serializers.ModelSerializer):
 
 class ProduitSerializer(serializers.ModelSerializer):
     selling_point = SellingPointCustomRelationQueryset(slug_field="id")
-    unit_choices = (("m²", "m²"), ("m", "m"), ("L", "L"), ("Kg", "Kg"), ("g", "g"))
+    unit_choices = (
+        ("bedon", "bedon"),
+        ("u", "u"),
+        ("kg", "kg"),
+        ("sac", "sac"),
+        ("g", "g"),
+        ("l", "l"),
+        ("m", "m"),
+        ("m2", "m2"),
+    )
     unit = serializers.ChoiceField(unit_choices)
     famille = serializers.SlugRelatedField(
         queryset=models.FamilleProduit.objects.all(), slug_field="id"
@@ -171,22 +180,108 @@ class FamilleProduitSerializer(serializers.ModelSerializer):
 class AvariesSerializer(serializers.ModelSerializer):
     selling_point = SellingPointCustomRelationQueryset(slug_field="id")
     produit = ProduitCustomRelationField(slug_field="id")
-    depoot = serializers.ReadOnlyField(source="depot")
+    depot = DepotCustomRelationField(slug_field="id")
     prix_prod = serializers.ReadOnlyField(source="prix_u")
+    depot_name = serializers.SerializerMethodField()
+    product_name = serializers.SerializerMethodField()
+    product_price = serializers.SerializerMethodField()
+    product_unit = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Avaries
-        fields = ["id", "selling_point", "produit", "qtte", "depoot", "prix_prod"]
+        fields = [
+            "id",
+            "selling_point",
+            "produit",
+            "qtte",
+            "depot",
+            "prix_prod",
+            "saisie_le",
+            "saisie_par",
+            "modifie_par",
+            "modilfié_le",
+            "depot_name",
+            "product_name",
+            "product_price",
+            "product_unit",
+        ]
         depth = 1
+
+    def get_depot_name(self, obj):
+        name = obj.depot.nom
+        if name:
+            return name
+        return "deleted"
+
+    def get_product_name(self, obj):
+        if obj.produit:
+            name = obj.produit.article
+        else:
+            name = "deleted"
+        return name
+
+    def get_product_price(self, obj):
+        if obj.produit:
+            price = obj.produit.prix_U_achat
+        else:
+            price = "deleted"
+        return price
+
+    def get_product_unit(self, obj):
+        if obj.produit:
+            unit = obj.produit.unit
+        else:
+            unit = "deleted"
+        return unit
+
+    # def get_caisseData(self, obj):
+    #     caisse = obj.caisse
+    #     serializer = CaisseSerializer(caisse)
+    #     return serializer.data
+
+
+class ProduitDepotSerializer(serializers.ModelSerializer):
+    produit = ProduitCustomRelationField(slug_field="id")
+    depot = DepotCustomRelationField(slug_field="id")
+    # date_de_fabrication = serializers.DateField()
+    # date_dexpiration = serializers.DateField()
+    unit_choices = (("m²", "m²"), ("m", "m"), ("L", "L"), ("Kg", "Kg"), ("g", "g"))
+    # unit = serializers.ChoiceField(unit_choices)
+    # prix = serializers.ReadOnlyField(source="prixProduit")
+    # qtteAct = serializers.ReadOnlyField(source="qtteActProduit")
+
+    class Meta:
+        model = models.ProduitDepot
+        fields = [
+            "id",
+            "depot",
+            "produit",
+            "quantite",
+            # "numero_lot",
+            # "date_de_fabrication",
+            # "date_dexpiration",
+            # "unit",
+            # "prix",
+            # "qtteAct",
+            "produit_reference",
+            # "numeroVente",
+            "produit_article",
+            "prix_detail_produit",
+            "prix_gros_produit",
+            "prix_autre_produit",
+            "produit_unite",
+            "total_prix",
+        ]
 
 
 class DepotSerializer(serializers.ModelSerializer):
     selling_point = SellingPointCustomRelationQueryset(slug_field="id")
-    produits = ProduitCustomRelationField(slug_field="id", many=True)
+    # produits = ProduitCustomRelationField(slug_field="id", many=True)
+    produitsDepot = ProduitDepotSerializer(many=True)
 
     class Meta:
         model = Depot
-        fields = ["id", "selling_point", "produits", "nom", "adresse"]
+        fields = ["id", "selling_point", "produitsDepot", "nom", "adresse"]
         depth = 1
 
 
@@ -262,9 +357,15 @@ class FicheDebitSerializer(serializers.ModelSerializer):
         read_only_fields = ["date", "saisie_le", "modilfié_le", "saisie_par"]
 
 
+class TypeFGSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.TypeFG
+        fields = ["id", "type"]
+
+
 class FraisGeneralesSerializer(serializers.ModelSerializer):
     selling_point = SellingPointCustomRelationQueryset(slug_field="id")
-    date = serializers.DateField()
+    date = serializers.DateField(read_only=True)
     caisse = CaisseCustomRelationField(slug_field="id")
     type = serializers.SlugRelatedField(
         queryset=models.TypeFG.objects.all(), slug_field="id"
@@ -278,6 +379,8 @@ class FraisGeneralesSerializer(serializers.ModelSerializer):
     reglement = serializers.ChoiceField(choices=reglement_choices)
     montant_tva = serializers.ReadOnlyField(source="montantTVA")
     prix_ttc = serializers.ReadOnlyField(source="prixTTC")
+    typeData = serializers.SerializerMethodField()
+
     # saisie_par = serializers.SlugRelatedField(queryset=User.objects.all(),
     # slug_field='id')
 
@@ -286,13 +389,15 @@ class FraisGeneralesSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "selling_point",
-            "number",
+            # "number",
             "date",
+            "TVA",
             "type",
             "caisse",
             "montant",
             "observation",
             "saisie_le",
+            "numero",
             "modilfié_le",
             "saisie_par",
             "modifie_par",
@@ -301,15 +406,25 @@ class FraisGeneralesSerializer(serializers.ModelSerializer):
             "montant",
             "timbre",
             "reglement",
+            "typeData",
         ]
-        # depth = 1
+        depth = 1
         read_only_fields = [
             "date",
             "saisie_le",
             "modilfié_le",
             "saisie_par",
             "modifie_par",
+            "montant_tva",
+            "prix_ttc",
+            "typeData",
+            "numero",
         ]
+
+    def get_typeData(self, obj):
+        type = obj.type
+        serializer = TypeFGSerializer(type)
+        return serializer.data
 
 
 class VendeurSerializer(serializers.ModelSerializer):
@@ -406,8 +521,9 @@ class ProduitAchatCommandeFournisseurSerializer(serializers.ModelSerializer):
             # "numeroVente",
             "produit_article",
             "prix_detail_produit",
-            # "prix_gros_produit",
-            # "prix_autre_produit",
+            "prix_achat_produit",
+            "prix_gros_produit",
+            "prix_autre_produit",
             "produit_unite",
             "total_prix",
         ]
@@ -488,7 +604,7 @@ class FicheACFournisseurSerializer(WritableNestedModelSerializer):
             "modifie_par",
             "numero",
         ]
-        # depth = 1
+        depth = 1
 
     def create(self, validated_data):
         produits_data = validated_data.pop("produits")
@@ -509,11 +625,13 @@ class FicheACFournisseurSerializer(WritableNestedModelSerializer):
             prodData = produit_data["produit"]
             prod = Produit.objects.get(id=prodData.id)
             prod.prix_detail = produit_data["prix_detail_produit"]
+            prod.prix_U_achat = produit_data["prix_achat_produit"]
             prod.save()
             if prod:
                 # if prod
                 prodAchat.total_prix = prod.prix_detail * prodAchat.quantite
                 prodAchat.prix_detail_produit = prod.prix_detail
+                prodAchat.prix_achat_produit = prod.prix_U_achat
                 prodAchat.prix_gros_produit = prod.prix_vente_gros
                 prodAchat.prix_autre_produit = prod.prix_vente_autre
                 prodAchat.produit_reference = prod.reference
@@ -564,17 +682,17 @@ class FicheACFournisseurSerializer(WritableNestedModelSerializer):
 
     #     return instance
 
-    def validate(self, data):
-        """
-        Check that start is before finish.
-        """
-        for prod in data["produits"]:
-            if prod["quantite"] > prod["produit"].qtteActuelStock:
-                missing = prod["quantite"] - prod["produit"].qtteActuelStock
-                raise serializers.ValidationError(
-                    f"you dont have enough of {prod['produit'].article}, you miss {missing} pieces"
-                )
-        return data
+    # def validate(self, data):
+    #     """
+    #     Check that start is before finish.
+    #     """
+    #     for prod in data["produits"]:
+    #         if prod["quantite"] > prod["produit"].qtteActuelStock:
+    #             missing = prod["quantite"] - prod["produit"].qtteActuelStock
+    #             raise serializers.ValidationError(
+    #                 f"you dont have enough of {prod['produit'].article}, you miss {missing} pieces"
+    #             )
+    #     return data
 
 
 class PayementFournisseurSerializer(serializers.ModelSerializer):
@@ -604,6 +722,7 @@ class PayementFournisseurSerializer(serializers.ModelSerializer):
             "selling_point",
             # "date",
             "fournisseur",
+            "numero",
             "number",
             "saisie_le",
             "modilfié_le",
@@ -617,8 +736,15 @@ class PayementFournisseurSerializer(serializers.ModelSerializer):
             "supplierData",
             "caisseData",
         ]
+        depth = 1
 
-        read_only_fields = ["saisie_le", "modilfié_le", "saisie_par", "modifie_par"]
+        read_only_fields = [
+            "numero",
+            "saisie_le",
+            "modilfié_le",
+            "saisie_par",
+            "modifie_par",
+        ]
 
     def get_supplierData(self, obj):
         id = obj.fournisseur.id
@@ -942,7 +1068,7 @@ class FicheVenteSerializer(WritableNestedModelSerializer):
             # "type_fiche",
             "reste_a_payer",
         ]
-        # depth = 1
+        depth = 1
 
     def create(self, validated_data):
         produits_data = validated_data.pop("produits")
@@ -1045,12 +1171,19 @@ class PayementClientSerializer(serializers.ModelSerializer):
             # "modifie_par",
             "montant",
             "reglement",
+            "numero",
             "caisse",
             "observation",
             "clientData",
             "caisseData",
         ]
-        read_only_fields = ["saisie_le", "modilfié_le", "saisie_par", "modifie_par"]
+        read_only_fields = [
+            "numero",
+            "saisie_le",
+            "modilfié_le",
+            "saisie_par",
+            "modifie_par",
+        ]
         depth = 1
 
     def validate(self, data):

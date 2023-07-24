@@ -90,7 +90,16 @@ class Produit(models.Model):
     reference = models.CharField(max_length=200)
     article = models.TextField(max_length=200)
     img = models.ImageField(null=True, blank=True, upload_to="images/produits/")
-    unit_data = (("m²", "m²"), ("m", "m"), ("L", "L"), ("Kg", "Kg"), ("g", "g"))
+    unit_data = (
+        ("bedon", "bedon"),
+        ("u", "u"),
+        ("Kg", "Kg"),
+        ("sac", "sac"),
+        ("g", "g"),
+        ("l", "l"),
+        ("m", "m"),
+        ("m2", "m2"),
+    )
     unit = models.CharField(default=1, choices=unit_data, max_length=20)
     # famille_data = (('1',"1"),('2',"2"),('3',"3"), ('4',"4"), ('4',"5"))
     # famille = models.CharField(choices=famille_data,max_length=20, default=1)
@@ -175,23 +184,63 @@ class Depot(models.Model):
         return f"{self.nom} dépot"
 
 
+class ProduitDepot(models.Model):
+    selling_point = models.ForeignKey(SellingPoint, on_delete=models.PROTECT)
+    depot = models.ForeignKey(
+        Depot, related_name="produitsDepot", on_delete=models.CASCADE
+    )
+
+    produit = models.ForeignKey(
+        Produit,
+        related_name="depotProduit",
+        on_delete=models.CASCADE,
+        null=True,
+    )
+    quantite = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    numero_lot = models.IntegerField(null=True, blank=True)
+    total_prix = models.IntegerField(blank=True, null=True)
+    prix_detail_produit = models.IntegerField(blank=True, null=True)
+    prix_gros_produit = models.IntegerField(blank=True, null=True)
+    prix_autre_produit = models.IntegerField(blank=True, null=True)
+    produit_reference = models.CharField(max_length=200, null=True, blank=True)
+    # produit_reference = models.CharField(max_length=200, null=True, blank=True)
+    produit_article = models.CharField(max_length=200, null=True, blank=True)
+    produit_unite = models.CharField(max_length=200, null=True, blank=True)
+
+    date_de_fabrication = models.DateField(null=True, blank=True)
+    date_dexpiration = models.DateField(null=True, blank=True)
+
+    def __str__(self) -> str:
+        return f"{self.produit.article} dans le dépot {self.depot.nom}"
+
+
 class Avaries(models.Model):
     selling_point = models.ForeignKey(SellingPoint, on_delete=models.PROTECT)
-    produit = models.ForeignKey(Produit, on_delete=models.PROTECT)
+    produit = models.ForeignKey(Produit, on_delete=models.SET_NULL, null=True)
 
     qtte = models.PositiveBigIntegerField()
     depot = models.ForeignKey(Depot, on_delete=models.PROTECT)
     date = models.DateField(auto_now=True)
     saisie_le = models.DateField(auto_now_add=True)
+    modilfié_le = models.DateField(auto_now=True)
+    saisie_par = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="saisie_par_avar"
+    )
+    modifie_par = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="modifie_par_avar", null=True
+    )
 
-    @property
-    def depot(self):
-        depot = self.produit.depot
-        return depot
+    # @property
+    # def depot(self):
+    #     depot = self.produit.depot
+    #     return depot
 
     @property
     def montant(self):
-        prix = self.produit.prix_U_achat * self.qtte
+        if self.produit:
+            prix = self.produit.prix_U_achat * self.qtte
+        else:
+            prix = "deleted"
         return prix
 
     def __str__(self) -> str:
@@ -312,9 +361,13 @@ class Vendeur(models.Model):
 class TypeFG(models.Model):
     type = models.CharField(max_length=100)
 
+    def __str__(self) -> str:
+        return f"{self.type}"
+
 
 class FraisGenerales(models.Model):
     selling_point = models.ForeignKey(SellingPoint, on_delete=models.CASCADE, default=1)
+    numero = models.CharField(default="1", max_length=30)
     date = models.DateField(auto_now=True)
     # number = models.CharField(max_length = 20, default = self.increment_booking_number, editable=False)    date = models.DateField()
     # type_data=(('1',"type1"),('2',"type2"),('3',"type3"), ('4',"type4"),)
@@ -348,6 +401,31 @@ class FraisGenerales(models.Model):
     caisse = models.ForeignKey(Caisse, on_delete=models.CASCADE)
     observation = models.TextField(max_length=500)
 
+    def save(self, *args, **kwargs):
+        # This means that the model isn't saved to the database yet
+        current_year = timezone.now().year
+        # last_instance = (
+        #     self.__class__.objects.filter(numero__icontains=f"{current_year}/")
+        #     .order_by("-id")
+        #     .first()
+        # )
+        last_instance = self.__class__.objects.all().order_by("-id").first()
+        if self._state.adding:
+            # Get the maximum display_id value from the database
+            if last_instance:
+                last_number = int(last_instance.numero.split("/")[0].split("#")[1])
+                last_year = int(last_instance.numero.split("/")[1])
+                # last_year = "2023"
+                # last_number = int(last_instance.numero.split('/')[0])
+                if last_year == current_year:
+                    self.numero = f"FG#{last_number + 1}/{current_year}"
+                else:
+                    self.numero = f"FG#1/{current_year}"
+            else:
+                self.numero = f"FG#1/{current_year}"
+
+        super(FraisGenerales, self).save(*args, **kwargs)
+
     @property
     def montantTVA(self):
         montant = (self.TVA * self.montant) / 100
@@ -359,7 +437,7 @@ class FraisGenerales(models.Model):
         return montant
 
     def __str__(self) -> str:
-        return f"frais {self.number} de la caisse {self.caisse.nom}"
+        return f"frais {self.type.type} de la caisse {self.caisse.nom}"
 
     @property
     def increment_number(self):
@@ -409,7 +487,9 @@ class Fournisseur(models.Model):
 
 class FicheAchatCommandeFournisseur(models.Model):
     type_fiche_data = (("Achat", "Achat"), ("Commande", "Commande"))
-    type_fiche = models.CharField(default=1, choices=type_fiche_data, max_length=10)
+    type_fiche = models.CharField(
+        default="Achat", choices=type_fiche_data, max_length=10
+    )
     selling_point = models.ForeignKey(SellingPoint, on_delete=models.PROTECT, default=1)
     fournisseur = models.ForeignKey(Fournisseur, on_delete=models.PROTECT, default=1)
     saisie_le = models.DateField(auto_now_add=True)
@@ -426,7 +506,7 @@ class FicheAchatCommandeFournisseur(models.Model):
         ("bon de commande", "bon de commande"),
     )
     action = models.CharField(default=1, choices=action_data, max_length=30)
-    numero = models.PositiveIntegerField(default=1)
+    numero = models.CharField(default="1", max_length=30)
     # code = models.IntegerField()
     date = models.DateField(auto_now=True)
     # prix = models.DecimalField(max_digits=10, decimal_places=2)
@@ -492,16 +572,37 @@ class FicheAchatCommandeFournisseur(models.Model):
 
     def save(self, *args, **kwargs):
         # This means that the model isn't saved to the database yet
+        typeFiche = self.type_fiche[:2].upper()
+
+        current_year = timezone.now().year
+        # last_instance = (
+        #     self.__class__.objects.filter(numero__icontains=f"{current_year}/")
+        #     .order_by("-id")
+        #     .first()
+        # )
+        last_instance = self.__class__.objects.all().order_by("-id").first()
         if self._state.adding:
             # Get the maximum display_id value from the database
-            last_id = self.__class__.objects.all().aggregate(
-                largest=models.Max("numero")
-            )["largest"]
+            if last_instance:
+                last_number = int(last_instance.numero.split("/")[0].split("#")[1])
+                last_year = int(last_instance.numero.split("/")[1])
+                # last_year = "2023"
+                # last_number = int(last_instance.numero.split('/')[0])
+                if last_year == current_year:
+                    self.numero = f"{typeFiche}#{last_number + 1}/{current_year}"
+                else:
+                    self.numero = f"{typeFiche}#1/{current_year}"
+            else:
+                self.numero = f"{typeFiche}#1/{current_year}"
 
-            # aggregate can return None! Check it first.
-            # If it isn't none, just use the last ID specified (which should be the greatest) and add one to it
-            if last_id is not None:
-                self.numero = last_id + 1
+            # last_id = self.__class__.objects.all().aggregate(
+            #     largest=models.Max("numero")
+            # )["largest"]
+
+            # # aggregate can return None! Check it first.
+            # # If it isn't none, just use the last ID specified (which should be the greatest) and add one to it
+            # if last_id is not None:
+            #     self.numero = last_id + 1
 
         super(FicheAchatCommandeFournisseur, self).save(*args, **kwargs)
 
@@ -554,6 +655,7 @@ class ProduitAchatCommandeFournisseur(models.Model):
     numero_lot = models.IntegerField(null=True, blank=True)
     total_prix = models.IntegerField(blank=True, null=True)
     prix_detail_produit = models.IntegerField(blank=True, null=True)
+    prix_achat_produit = models.IntegerField(blank=True, null=True)
     prix_gros_produit = models.IntegerField(blank=True, null=True)
     prix_autre_produit = models.IntegerField(blank=True, null=True)
     produit_reference = models.CharField(max_length=200, null=True, blank=True)
@@ -583,6 +685,7 @@ class ProduitAchatCommandeFournisseur(models.Model):
 
 class PayementFournisseur(models.Model):
     selling_point = models.ForeignKey(SellingPoint, on_delete=models.CASCADE, default=1)
+    numero = models.CharField(default="1", max_length=30)
     # date = models.DateField(null)
     fournisseur = models.ForeignKey(Fournisseur, on_delete=models.PROTECT)
     saisie_le = models.DateField(auto_now_add=True)
@@ -608,6 +711,40 @@ class PayementFournisseur(models.Model):
 
     def __str__(self) -> str:
         return f"fiche payement {self.fournisseur.name}"
+
+    def save(self, *args, **kwargs):
+        # This means that the model isn't saved to the database yet
+        current_year = timezone.now().year
+        # last_instance = (
+        #     self.__class__.objects.filter(numero__icontains=f"{current_year}/")
+        #     .order_by("-id")
+        #     .first()
+        # )
+        last_instance = self.__class__.objects.all().order_by("-id").first()
+        if self._state.adding:
+            # Get the maximum display_id value from the database
+            if last_instance:
+                last_number = int(last_instance.numero.split("/")[0].split("#")[1])
+                last_year = int(last_instance.numero.split("/")[1])
+                # last_year = "2023"
+                # last_number = int(last_instance.numero.split('/')[0])
+                if last_year == current_year:
+                    self.numero = f"PF#{last_number + 1}/{current_year}"
+                else:
+                    self.numero = f"PF#1/{current_year}"
+            else:
+                self.numero = f"PF#1/{current_year}"
+
+            # last_id = self.__class__.objects.all().aggregate(
+            #     largest=models.Max("numero")
+            # )["largest"]
+
+            # # aggregate can return None! Check it first.
+            # # If it isn't none, just use the last ID specified (which should be the greatest) and add one to it
+            # if last_id is not None:
+            #     self.numero = last_id + 1
+
+        super(PayementFournisseur, self).save(*args, **kwargs)
 
 
 class RetoursFournisseur(models.Model):
@@ -778,6 +915,15 @@ class FicheVenteClient(models.Model):
     )
 
     def save(self, *args, **kwargs):
+        ficheType = ""
+        if self.type_fiche == "Bon de livraison":
+            ficheType = "BL"
+        if self.type_fiche == "Facture":
+            ficheType = "FA"
+        if self.type_fiche == "BL sans montant":
+            ficheType = "BS"
+        if self.type_fiche == "Facture proformat":
+            ficheType = "FP"
         # This means that the model isn't saved to the database yet
         current_year = timezone.now().year
         # last_instance = (
@@ -789,16 +935,16 @@ class FicheVenteClient(models.Model):
         if self._state.adding:
             # Get the maximum display_id value from the database
             if last_instance:
-                last_number = int(last_instance.numero.split("/")[0])
+                last_number = int(last_instance.numero.split("/")[0].split("#")[1])
                 last_year = int(last_instance.numero.split("/")[1])
                 # last_year = "2023"
                 # last_number = int(last_instance.numero.split('/')[0])
                 if last_year == current_year:
-                    self.numero = f"{last_number + 1}/{current_year}"
+                    self.numero = f"{ficheType}#{last_number + 1}/{current_year}"
                 else:
-                    self.numero = f"1/{current_year}"
+                    self.numero = f"{ficheType}#1/{current_year}"
             else:
-                self.numero = f"1/{current_year}"
+                self.numero = f"{ficheType}#1/{current_year}"
 
             # last_id = self.__class__.objects.all().aggregate(
             #     largest=models.Max("numero")
@@ -892,6 +1038,9 @@ class ProduitVenteClient(models.Model):
 
 
 class PayementClient(models.Model):
+    numero = models.CharField(
+        default="1", max_length=30
+    )  # numero = models.BigAutoField()
     selling_point = models.ForeignKey(SellingPoint, on_delete=models.CASCADE, default=1)
     # date = models.DateField()
     client = models.ForeignKey(Client, on_delete=models.PROTECT)
@@ -922,6 +1071,40 @@ class PayementClient(models.Model):
 
     def __str__(self) -> str:
         return f"payement {self.client.nom}"
+
+    def save(self, *args, **kwargs):
+        # This means that the model isn't saved to the database yet
+        current_year = timezone.now().year
+        # last_instance = (
+        #     self.__class__.objects.filter(numero__icontains=f"{current_year}/")
+        #     .order_by("-id")
+        #     .first()
+        # )
+        last_instance = self.__class__.objects.all().order_by("-id").first()
+        if self._state.adding:
+            # Get the maximum display_id value from the database
+            if last_instance:
+                last_number = int(last_instance.numero.split("/")[0].split("#")[1])
+                last_year = int(last_instance.numero.split("/")[1])
+                # last_year = "2023"
+                # last_number = int(last_instance.numero.split('/')[0])
+                if last_year == current_year:
+                    self.numero = f"PC#{last_number + 1}/{current_year}"
+                else:
+                    self.numero = f"PC#1/{current_year}"
+            else:
+                self.numero = f"PC#1/{current_year}"
+
+            # last_id = self.__class__.objects.all().aggregate(
+            #     largest=models.Max("numero")
+            # )["largest"]
+
+            # # aggregate can return None! Check it first.
+            # # If it isn't none, just use the last ID specified (which should be the greatest) and add one to it
+            # if last_id is not None:
+            #     self.numero = last_id + 1
+
+        super(PayementClient, self).save(*args, **kwargs)
 
 
 class RetoursClient(models.Model):
