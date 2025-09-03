@@ -91,6 +91,20 @@ class UserPk(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.CustomUser.objects.all()
     serializer_class = serializers.UserSerializer
     permission_classes = [IsAuthenticated]
+    def destroy(self, request, *args, **kwargs):
+        """
+        Mock delete: do not actually remove the user.
+        """
+        instance = self.get_object()
+        data = self.get_serializer(instance).data
+        return Response(
+            {
+                "status": "mock_delete",
+                "message": "Delete is disabled. User was not removed.",
+                "user": data,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 @api_view(["GET", "PUT", "DELETE"])
