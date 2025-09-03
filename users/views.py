@@ -105,7 +105,23 @@ class UserPk(generics.RetrieveUpdateDestroyAPIView):
             },
             status=status.HTTP_200_OK,
         )
+    def update(self, request, *args, **kwargs):
+        """
+        Mock update: do not modify the user.
+        """
+        instance = self.get_object()
+        data = self.get_serializer(instance).data
+        return Response(
+            {
+                "status": "mock_update",
+                "message": "Update is disabled. User was not modified.",
+                "user": data,
+            },
+            status=status.HTTP_200_OK,
+        )
 
+    def partial_update(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs)
 
 @api_view(["GET", "PUT", "DELETE"])
 @permission_classes([IsAuthenticated, IsAdminUser])
